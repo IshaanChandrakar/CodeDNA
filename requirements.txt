@@ -1,0 +1,3 @@
+# Install the editable project, setup tests, and the planned dashboard dependency.
+# Dependency versions have one source of truth: pyproject.toml.
+-e .[test,dashboard]

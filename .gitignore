@@ -1,0 +1,42 @@
+# Python and packaging
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# Tests and local tools
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.idea/
+.vscode/
+.DS_Store
+
+# Local secrets
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# PLY generated tables
+parser.out
+parsetab.py
+lextab.py
+
+# Generated runs, binaries, diagrams, and measurements
+/results/*
+!/results/.gitkeep
+*.o
+*.obj
+*.so
+*.dylib
+*.exe
+perf.data
+perf.data.*

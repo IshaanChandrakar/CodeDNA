@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codedna"
+version = "0.0.1"
+description = "Compiler-guided transformation-response fingerprinting lab project"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "Ishaan"}, {name = "Zayn"}, {name = "Pranav"}]
+dependencies = ["ply>=3.11,<4", "graphviz>=0.20,<1"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+dashboard = ["streamlit>=1.40,<2"]
+
+[project.urls]
+Repository = "https://github.com/Trifecta-tech/CompilerFallSem"
+
+[tool.setuptools]
+packages = ["compiler", "transformations", "runtime", "fingerprint", "visualization"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra --strict-config --strict-markers --import-mode=importlib"
+markers = [
+    "integration: requires external compiler or rendering tools",
+    "perf: requires Linux perf and hardware counter permission",
+]
