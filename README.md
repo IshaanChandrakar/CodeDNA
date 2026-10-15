@@ -13,11 +13,12 @@ Repository: [Trifecta-tech/CompilerFallSem](https://github.com/Trifecta-tech/Com
 
 ## Current status
 
-**Repository setup only. None of the seven compiler/application phases is
-implemented.** The packages contain descriptive docstrings, and the tests check
-installation and imports. No tokenizer, parser, transformation, benchmarking,
-fingerprint score, or dashboard is available yet. Dependencies for future work
-are declared without implementing that work.
+**Phases 1 and 2 are complete:** a genuine PLY frontend, typed AST, semantic
+analysis, typed three-address code, TAC-derived CFGs, and AST/CFG DOT diagrams
+with optional SVG/PNG/PDF rendering. The full suite passes **530 tests** on
+macOS with Python 3.14.5 and PLY 3.11, including all 243 Phase 1 tests.
+**Phases 3–7 are pending.** Transformations, C execution, runtime measurements,
+fingerprints and the dashboard are not implemented.
 
 The research hypothesis is to be evaluated: a similar fingerprint is evidence
 for investigation, not proof of semantic equivalence. Timing noise, constant
@@ -51,15 +52,18 @@ and external tools still need an implementation-stage compatibility matrix.
 | Component | Purpose | Needed when |
 | --- | --- | --- |
 | PLY | Genuine lexer and LALR parser | Phase 1 |
-| Python `graphviz` | Build DOT graphs | Phase 2 |
-| Graphviz `dot` executable | Render DOT to SVG/PNG | Phase 2 |
+| Python `graphviz` | Declared visualization binding; DOT export itself uses pure Python | Phase 2 |
+| Graphviz `dot` executable | Optional rendering of DOT to SVG/PNG/PDF | Phase 2 |
 | Clang/LLVM | Compile C and inspect LLVM IR | Phases 3–5 |
 | pytest | Setup and module tests | Now and every phase |
 | Streamlit | Demonstration dashboard | Phase 7 |
 | Linux `perf` | Executed hardware instruction counts | Phase 5, if permitted |
 
-The Python Graphviz package does not install `dot`. Clang and `perf` are also
-external tools. They are not required for the current smoke tests.
+The Python Graphviz package does not install `dot`. DOT generation and the core
+test suite work without it; real rendering tests skip explicitly when it is
+absent. Clang and `perf` are external tools for later phases, not required by the
+current compiler pipeline. Graphviz 16.1.0 was installed locally via Homebrew,
+including its system dependencies, to validate real rendered diagrams.
 
 macOS tool installation, when needed:
 
@@ -95,25 +99,224 @@ python -m pytest
 python -m pytest --collect-only -q
 ```
 
-The initial suite has eight import smoke tests. Future tests marked `integration`
-require external tools; tests marked `perf` require Linux counter access. Missing
-optional tools must yield explicit skips or unavailable measurements, never
-fabricated data. There are no such tests yet.
+The suite includes all 243 Phase 1 tests and 287 Phase 2 tests for semantics,
+TAC behavior, CFGs, diagrams and CLI integration. A small test-only TAC evaluator
+checks expected return values and branch/loop behavior; it is not a production
+runtime or measurement backend. Nine rendering cases require external Graphviz
+and skip explicitly without it. Missing-renderer and renderer-failure tests run
+independently of the local installation. No hardware counters or benchmarks run.
+
+```sh
+python -m pytest tests/test_semantic.py tests/test_ir.py tests/test_cfg.py
+python -m pytest tests/test_graph_renderer.py tests/test_phase2_cli.py
+```
+
+## Phase 1 usage
+
+Activate `.venv`, then run from the checkout:
+
+```sh
+python -m compiler --tokens examples/basic/arithmetic.c
+python -m compiler --ast examples/basic/arithmetic.c
+python -m compiler --ast examples/basic/nested_if_else.c
+python -m compiler --ast examples/loops/sum.c
+python -m compiler --ast examples/invalid/missing_semicolon.c
+```
+
+`--tokens` performs lexical analysis only. `--ast` parses and writes formatted
+AST JSON. Exit codes are **0** for success, **1** for source errors, and **2** for
+file/encoding or CLI-argument errors. Diagnostics go to stderr; no partial output
+or traceback is printed for expected errors. Read UTF-8 files; original newline
+spelling is preserved for source offsets. Locations use one-based character
+columns (a tab counts as one character), zero-based character offsets and an
+exclusive end position.
+
+Actual token output from `python -m compiler --tokens examples/basic/minimal.c`:
+
+```text
+1:1 INT 'int'
+1:5 ID 'main'
+1:9 LPAREN '('
+1:10 RPAREN ')'
+1:12 LBRACE '{'
+1:14 RETURN 'return'
+1:21 INTEGER 0
+1:22 SEMICOLON ';'
+1:24 RBRACE '}'
+```
+
+Library APIs return real typed records and syntax nodes:
+
+```python
+from pathlib import Path
+from compiler.ast_nodes import ast_to_dict, ast_to_json, walk
+from compiler.lexer import tokenize
+from compiler.parser import parse
+
+source = Path("examples/basic/minimal.c").read_text(encoding="utf-8")
+tokens = tokenize(source)
+program = parse(source)
+print(ast_to_json(program))
+print([type(node).__name__ for node in walk(program)])
+```
+
+The traversal prints `['Program', 'Function', 'Block', 'Return', 'IntegerLiteral']`.
+The actual return-expression subtree from that program, obtained with
+`ast_to_json(program.function.body.items[0].value)`, is:
+
+```json
+{
+  "kind": "IntegerLiteral",
+  "node_id": "n0",
+  "span": {
+    "start_line": 1,
+    "start_column": 21,
+    "end_line": 1,
+    "end_column": 22,
+    "start_offset": 20,
+    "end_offset": 21
+  },
+  "value": 0
+}
+```
+
+Actual invalid-file diagnostic (exit code 1):
+
+```text
+examples/invalid/missing_semicolon.c:3:5: parser error [UNEXPECTED_TOKEN]: Unexpected RETURN token 'return'
+```
+
+Tokens have `type`, typed `value`, original `lexeme` and `span`. All AST nodes are
+frozen dataclasses with spans and deterministic per-parse IDs; blocks use tuples.
+Use `iter_child_nodes()` for direct children or `walk()` for preorder traversal.
+`LexicalError` and `ParseError` carry a structured `.diagnostic`; callers can
+catch their shared base `FrontendError` from `compiler.diagnostics`.
+
+## Phase 2 usage
+
+```sh
+python -m compiler --check examples/basic/arithmetic.c
+python -m compiler --tac examples/basic/arithmetic.c
+python -m compiler --cfg examples/loops/sum.c
+python -m compiler --ast-dot examples/basic/arithmetic.c
+python -m compiler --cfg-dot --output results/sum_cfg.dot examples/loops/sum.c
+python -m compiler --ast-dot --format svg --output results/arithmetic_ast.svg examples/basic/arithmetic.c
+python -m compiler --cfg-dot --format png --output results/sum_cfg.png examples/loops/sum.c
+```
+
+`--check`, `--tac`, `--cfg` and `--cfg-dot` validate semantics first; `--tokens`,
+`--ast` and `--ast-dot` preserve syntax-only inspection. `--output` saves text or
+graph output, creating parent directories. `--format` is graph-only, defaults to
+`dot`, and accepts `dot`, `svg`, `png` or `pdf`; rendered formats require an output
+file. Output/sidecar aliases of the input file are rejected. Warnings go to stderr
+without changing a successful exit code. Source errors exit 1; file/argument or
+rendering errors exit 2. Failed rendering leaves a `.dot` sidecar and reports its
+path, so graphs remain inspectable without the external executable.
+
+Actual `--tac examples/basic/arithmetic.c` output:
+
+```text
+%t0 = 3 * 4
+%t1 = 2 + %t0
+x = %t1
+%t2 = x - 2
+%t3 = %t2 / 3
+y = %t3
+%t4 = y % 3
+%t5 = x + %t4
+x = %t5
+return x
+```
+
+Actual edge section from `--cfg examples/loops/sum.c` (the command also prints
+the instructions in each block):
+
+```text
+edges:
+  entry -> B0 [entry]
+  B0 -> B1 [fallthrough]
+  B1 -> B2 [true]
+  B1 -> B4 [false]
+  B2 -> B3 [fallthrough]
+  B3 -> B1 [jump]
+  B4 -> exit [return]
+```
+
+The jump from B3 to B1 is the actual loop-back edge. Returns lead only to the
+synthetic exit. Source variables retain their spelling; temporary names have a
+`%` prefix so an input variable named `t0` cannot collide with `%t0`.
+
+```python
+from compiler.semantic import analyze
+from compiler.ir import lower_ir, format_ir, validate
+from compiler.cfg import build_cfg, format_cfg
+from visualization.graph_renderer import ast_to_dot, cfg_to_dot, render
+
+analysis = analyze(program)   # separate symbols/bindings/warnings; AST unchanged
+ir = lower_ir(program)       # validates before lowering
+cfg = build_cfg(ir)          # consumes typed TAC, never reparses its text
+print(format_ir(ir))
+print(format_cfg(cfg))
+render(cfg_to_dot(cfg), "results/cfg.svg", "svg")
+```
+
+`SemanticError` extends the existing `FrontendError`. Example source
+`int main(){int x;return x;}` produces:
+
+```text
+<input>:1:25: semantic error [UNINITIALIZED_VARIABLE]: Variable 'x' is not definitely initialized before this read
+```
+
+Semantic checks enforce block/loop scope, no duplicate names or shadowing anywhere
+in `main`, declared/initialized reads, explicit return paths, and statically known
+zero divisors or signed 32-bit overflow. Structural unreachable statements warn
+and are omitted during lowering. Initialization joins only paths that continue;
+both conditional arms are conservatively possible and loops may execute zero
+times, even with literal conditions. Diagnostic constants do not rewrite/fold
+the AST or TAC. Loop-written values lose known-constant facts. Passing validation
+does not prove runtime arithmetic safety or termination.
+
+Division truncates toward zero; remainder is `a - trunc(a/b) * b`. Signed overflow,
+zero divisors, and `INT_MIN / -1` or `INT_MIN % -1` are undefined in the study's
+32-bit signed-int model. The future execution backend must verify the target and
+use defined inputs. Phase 2 does not execute user C or measure performance.
 
 ## Current directory structure
 
 ```text
 CodeDNA/
-├── compiler/__init__.py
+├── compiler/
+│   ├── __init__.py
+│   ├── __main__.py
+│   ├── ast_nodes.py
+│   ├── diagnostics.py
+│   ├── lexer.py
+│   ├── parser.py
+│   ├── semantic.py
+│   ├── ir.py
+│   └── cfg.py
 ├── transformations/__init__.py
 ├── runtime/__init__.py
 ├── fingerprint/__init__.py
-├── visualization/__init__.py
+├── visualization/
+│   ├── __init__.py
+│   └── graph_renderer.py
 ├── examples/
-│   ├── basic/.gitkeep
-│   ├── loops/.gitkeep
+│   ├── basic/       # 6 valid C examples and .gitkeep
+│   ├── loops/       # 3 valid C examples and .gitkeep
+│   ├── invalid/     # 6 intentionally invalid C examples
 │   └── comparison/.gitkeep
-├── tests/test_setup.py
+├── tests/
+│   ├── test_setup.py
+│   ├── test_lexer.py
+│   ├── test_parser.py
+│   ├── test_ast.py
+│   ├── test_frontend_integration.py
+│   ├── test_semantic.py
+│   ├── test_ir.py
+│   ├── test_cfg.py
+│   ├── test_graph_renderer.py
+│   └── test_phase2_cli.py
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── IMPLEMENTATION_PLAN.md
@@ -126,25 +329,34 @@ CodeDNA/
 └── README.md
 ```
 
-Stage-specific files such as `compiler/lexer.py`, `compiler/parser.py`,
-`compiler/ast_nodes.py`, `compiler/cfg.py`, `compiler/ir.py`, the transformation
-and runtime modules, `fingerprint/matrix.py`, `fingerprint/similarity.py`,
-`visualization/graph_renderer.py`, and `app.py` will be created in their phases.
-They are intentionally absent during setup. `visualization/__init__.py` makes
+Later transformation and runtime modules, `fingerprint/matrix.py`,
+`fingerprint/similarity.py`, and `app.py` remain absent after Phase 2.
+`compiler/semantic.py` separates binding/dataflow from representation/lowering;
+the planned `validate()` remains available through `compiler.ir`.
+`compiler/diagnostics.py` shares frontend
+errors/source mapping without coupling AST definitions to PLY; `__main__.py`
+provides the requested CLI. `visualization/__init__.py` makes
 visualization an explicit importable package. `.gitkeep` files retain empty
 directories in Git; generated results are ignored.
 
-## Supported C subset (planned)
+## Supported C syntax (implemented)
 
 One `int main()` or `int main(void)` function, integer literals and variables,
-local declarations, assignments, arithmetic and relational expressions,
-`if`/`else`, counted `for` loops, and `return`. Initial programs have no external
-input or I/O; input cases will initially be controlled source fixtures.
+local declarations, assignments, unary `+`/`-`, arithmetic `+ - * / %`, relational
+and equality expressions, blocks and empty statements, `if`/`else`, basic `for`
+loops, and `return`. Comments and LF/CRLF/CR line endings are supported. Literals
+must be decimal `0..2147483647` without leading zeros or suffixes. Initial
+programs have no external input or I/O; cases use controlled source fixtures.
 
 Pointers, arrays, function calls, additional functions, preprocessing directives,
 strings, floating point, structs, `while`/`do`, `break`/`continue`, increment and
 compound-assignment operators are unsupported. Use `i = i + 1` in a `for` update.
 See [the precise grammar, semantic restrictions, and AST/IR contract](docs/COMPILER_DESIGN.md).
+
+Phase 1 APIs continue to check **syntax** only; Phase 2 APIs apply the semantic
+checks above. Deeply nested frontend processing and AST
+JSON serialization is limited by Python recursion; the CLI reports that limit
+without a traceback. There is no C preprocessing or line-splicing implementation.
 
 ## Roadmap
 
@@ -169,11 +381,12 @@ and dependencies are in [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
 - **Pranav:** compilation, execution, measurements, test automation, fingerprint
   evaluation, and integration.
 
-The frontend returns shared AST nodes; CFG and IR consume that AST. Transformations
+The frontend returns shared AST nodes; semantic analysis and TAC lowering consume
+the AST, and CFG construction consumes TAC. Planned transformations
 return fresh ASTs and reports. Runtime consumes emitted C and returns structured
 execution/measurement records. Fingerprinting consumes measurements with explicit
 units, provenance, and missing values. These are design contracts, not existing
-APIs. Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+APIs except for the completed Phase 1–2 pipeline. Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Development rules
 
@@ -189,13 +402,12 @@ Benchmark variants with the same compiler flags, inputs, and environment. Verify
 observable results before accepting measurements. Keep raw data and metadata;
 never invent timing values, instruction counts, or similarity scores.
 
-## Next work: Phase 1 only
+## Next work: Phase 3 (not started)
 
-Define `SourceSpan` and AST dataclasses in `compiler/ast_nodes.py`, implement PLY
-tokens in `compiler/lexer.py`, and implement the documented grammar and precedence
-in `compiler/parser.py`. Add real basic/conditional/loop fixtures and unit tests
-for tokens, AST structure, and source-located errors. Do not start CFG, IR,
-transformations, runtime, fingerprints, or the dashboard until Phase 1 is accepted.
+After a separate Phase 3 request, add AST-to-C emission, genuine constant
+propagation/folding, conservative loop unrolling, pass applicability reports and
+equivalence tests on defined inputs. The present task stops at Phase 2. No source
+transformation, emitted variant, compiler runner, benchmark or dashboard is added.
 
 ## References
 

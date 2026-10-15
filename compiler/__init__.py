@@ -1,1 +1,1 @@
-"""Reserved for the C frontend, shared AST, CFG, and three-address IR."""
+"""Restricted C frontend, semantic validation, typed TAC and control-flow graphs."""

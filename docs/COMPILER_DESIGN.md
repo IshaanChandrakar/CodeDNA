@@ -1,8 +1,8 @@
 # Compiler design
 
-Status: proposed implementation contract, not implemented functionality.
-Updated 2026-10-09. This document defines the initial subset and representations
-to share between contributors.
+Status: Phases 1–2 lexical/syntax grammar, AST, semantic checks, TAC, CFG and
+visualization implemented; transformations remain planned. Updated 2026-10-15.
+This document is the shared frontend/representation contract.
 
 ## Language boundary
 
@@ -26,9 +26,9 @@ and describe it as frontend support. Lexer/parser construction uses genuine
 PLY rules; neither regex extraction of statements nor a Clang-produced AST
 replaces the lab implementation.
 
-## Grammar sketch
+## Implemented grammar
 
-This EBNF is the planned PLY grammar, not a parser implemented during setup.
+This EBNF describes the actual PLY grammar in `compiler/parser.py`.
 `identifier` and `integer` are lexical token classes; `main` is an identifier
 whose spelling is checked in the function production. Keywords have reserved
 token types. Integer literals use `0` or a nonzero digit followed by decimal
@@ -62,21 +62,66 @@ header shape; the unroller later handles only its proven-safe subset.
 Multiplication/division/remainder bind tighter than addition/subtraction, which
 bind tighter than relational operators, then equality. Unary operators bind
 most tightly. Binary operators associate left. Assignment is only a statement,
-so it has no expression precedence. Resolve dangling `else` to the nearest
-unmatched `if` with explicit grammar/precedence and test the resolution. Document
-any intended PLY conflict; unexplained parser conflicts fail Phase 1 acceptance.
+so it has no expression precedence. Layered, left-recursive expression productions
+implement these rules. The no-else `if` production uses `%prec IF_WITHOUT_ELSE`,
+whose precedence is lower than `ELSE`; an `else` shifts onto the nearest unmatched
+`if`. A debug LALR build on PLY 3.11 reports **zero unresolved shift/reduce or
+reduce/reduce conflicts**. The test suite checks both dangling-else behavior and
+the build log. Parser tables and `parser.out` are never written.
 
-## Semantics and validation
+### Lexical contract and diagnostics
 
-Use C signed `int` semantics for a target with 32-bit `int`; the runtime checks
-the target and records it. Arithmetic results outside that range are undefined
+`compiler.lexer.tokenize(source)` returns `TokenRecord(type, value, lexeme, span)`.
+Token names are `INT`, `VOID`, `RETURN`, `IF`, `ELSE`, `FOR`, `ID`, `INTEGER`,
+`PLUS`, `MINUS`, `STAR`, `SLASH`, `PERCENT`, `ASSIGN`, `EQ`, `NE`, `LT`, `LE`,
+`GT`, `GE`, `LPAREN`, `RPAREN`, `LBRACE`, `RBRACE`, and `SEMICOLON`.
+Keyword matching is case-sensitive; `main` remains an `ID` checked by the program
+production. Identifiers use ASCII `[A-Za-z_][A-Za-z0-9_]*`. Other C11 reserved
+words are rejected, including when spelled in an identifier position.
+
+PLY operator rules use longest matches and explicitly reject `++`, `--`, compound
+assignment and other unsupported multi-character operators before they can be
+split into supported tokens. Numeric-like text with leading zeros, a suffix,
+hex/octal syntax or a decimal point is rejected. Magnitudes above 2147483647 are
+rejected before Python `int()` conversion, including inputs beyond Python's digit
+limit. Unary signs are separate tokens.
+
+Ignore space, tab, form feed, vertical tab, `//` comments and nonnested `/* */`
+comments. Source positions retain LF, CRLF or lone CR without normalization;
+columns count characters, not display widths. No preprocessor directives or
+backslash line-splicing are implemented. Each `build_lexer()` is fresh, and its
+`input(source)` resets state. Every `parse(source)` builds fresh grammar/parser
+state and produces no partial AST on failure.
+
+Shared diagnostics live in `compiler/diagnostics.py` to avoid duplicating source
+position logic or importing PLY into AST definitions. `SourceMap` maps character
+offsets to spans. `Diagnostic` has `stage`, stable `code`, `message`, and `span`.
+`LexicalError`, `ParseError`, and Phase 2 `SemanticError` derive from `FrontendError` and expose
+`.diagnostic`. The frontend fails at the first encountered error; it does not
+recover and invent missing statements.
+
+| Stage | Diagnostic codes |
+| --- | --- |
+| Lexer | `ILLEGAL_CHARACTER`, `INVALID_INTEGER_LITERAL`, `INTEGER_OUT_OF_RANGE`, `UNTERMINATED_COMMENT`, `UNSUPPORTED_KEYWORD`, `UNSUPPORTED_OPERATOR` |
+| Parser | `UNEXPECTED_TOKEN`, `UNEXPECTED_EOF`, `INVALID_ENTRY_POINT` |
+| Semantic | `DUPLICATE_DECLARATION`, `UNDECLARED_VARIABLE`, `UNINITIALIZED_VARIABLE`, `DIVISION_BY_ZERO`, `MODULO_BY_ZERO`, `INTEGER_OVERFLOW`, `MISSING_RETURN` |
+| Semantic warning | `UNREACHABLE_STATEMENT` |
+
+Unexpected EOF has a zero-width span at the actual end of source, including
+empty/comment-only files. Unexpected tokens retain their exact original lexeme
+and position. CLI file/encoding errors are separate from source diagnostics.
+
+## Implemented semantic analysis
+
+Use C signed `int` semantics for a target with 32-bit `int`; the future runtime
+must check and record that target assumption. Arithmetic results outside that range are undefined
 for this study and must not be folded into Python's unbounded integer values.
 Literal magnitudes initially fit `0..2147483647`; spelling `-2147483648` is outside
 the initial literal subset and can be extended deliberately later.
 
 Division truncates toward zero, unlike Python floor division for negative values.
-Remainder is `a - trunc(a / b) * b`. Division by zero and `INT_MIN / -1` are
-undefined; do not evaluate/fold them. Comparisons produce integer `0` or `1`,
+Remainder is `a - trunc(a / b) * b`. Zero divisors, `INT_MIN / -1` and
+`INT_MIN % -1` are undefined; do not evaluate/fold them. Comparisons produce integer `0` or `1`,
 and conditions treat zero as false, all other integers as true. Expressions are
 side-effect-free because calls and assignments within expressions are unsupported.
 
@@ -85,17 +130,42 @@ that loop only. To simplify the first implementation, declared variable names
 must be unique across `main` (no shadowing). Reject duplicate declarations,
 undeclared/out-of-scope references and reads not definitely initialized.
 An `int x;` declaration is valid if `x` is assigned before every possible read.
-Join conditional initialization facts by intersection; a loop body may run zero
-times. Declaration initializers cannot read their own uninitialized variable.
+Join conditional initialization facts by intersection over paths that continue;
+a returning arm does not dilute initialization on its surviving sibling. A loop
+body may run zero times. Declaration initializers cannot read their own
+uninitialized variable.
 
-Phase 1 handles token/grammar errors and constructs the AST; Phase 2 introduces
-these semantic checks before lowering. Detect statically provable undefined
-arithmetic in validation; for runtime-dependent cases, later correctness tests
+Phase 1 handles token/grammar errors and constructs the AST; Phase 2 implements
+these semantic checks before lowering. Known constants support diagnostics only:
+safe literal expressions, straight-line assignments and agreeing branch facts
+allow detection of a zero divisor or overflow. They do not rewrite syntax or TAC.
+Every variable assigned in a loop body/update loses its known constant before
+checking the condition/body and after the loop. This deliberately sacrifices
+some first-iteration facts to avoid treating loop-carried values as invariant.
+It is not a fixed-point value/range proof. For runtime-dependent cases, later correctness tests
 must use defined, terminating inputs and separately report undefined behavior
 or timeouts. The project does not claim to decide arbitrary termination or
 semantic equivalence. Require an explicit return on every reachable function
 exit in the supported study subset; return inside a loop is parseable but makes
 that loop ineligible for initial unrolling.
+
+`compiler/semantic.py` performs lexical binding first (including dead syntax),
+then conservative dataflow over the structured AST. `analyze(program)` returns
+immutable `SemanticAnalysis` annotations: ordered `Symbol` records, a read-only
+node-ID-to-symbol mapping, warning diagnostics and dead node IDs. Symbols are
+`s0`, `s1`, ... in declaration order, with name, declaration ID and source span.
+`validate(program)` discards annotations/warnings and returns `None`; both APIs
+are also available through `compiler.ir` for compatibility with the planned API.
+
+Both `if` alternatives are considered possible, including `if(0)`/`if(1)`.
+Every `for` may execute zero times, even if its constant condition appears true.
+Therefore a literal true `if` alone does not establish initialization or a return,
+and a literal false arm still receives semantic checks. Structural code after an
+unconditional return (or an `if` with two returning arms), and a loop update after
+an always-returning body, receives `UNREACHABLE_STATEMENT` warnings. Dead syntax
+still has declaration/name legality checked; its arithmetic and initialization
+reads are not evaluated. This policy is intentionally conservative and documented,
+not a termination or path-feasibility solver.
 
 V1 user code has no stdin/argv/I/O operations. Examples vary embedded integer
 initializers to construct controlled cases. Each such source case is transformed
@@ -104,22 +174,30 @@ program-family IDs. External-input support requires a later explicit language
 extension. Full return values must be observed by the validation harness because
 exit statuses can hide differences (for example, returns of 0 and 256).
 
-## Planned AST
+## Implemented AST
 
-Use dataclasses, one source span per node, and deterministic local node IDs.
-IDs support provenance and diagnostics, not semantic matching. Keep the baseline
-AST immutable in practice; transformation passes return fresh nodes. New nodes
-have unique IDs and a separate origin map to original IDs/spans.
+`compiler/ast_nodes.py` uses frozen, slotted, keyword-only dataclasses with one
+`SourceSpan` per node and deterministic per-parse `n0`, `n1`, ... IDs allocated
+during reductions. IDs support provenance/diagnostics, not semantic matching.
+Block items are immutable tuples in Python and arrays in JSON. Future
+transformations return fresh nodes with unique IDs and an origin map; this map
+and the passes are not implemented in Phase 1.
+
+`SourceSpan` fields are `start_line`, `start_column`, `end_line`, `end_column`,
+`start_offset`, `end_offset`. Lines/columns are one-based, character offsets
+zero-based and the end is exclusive. Node spans cover their complete syntactic
+construct, excluding surrounding comments/whitespace. Parenthesized expressions
+retain the inner node kind/ID but widen its span to include the parentheses.
 
 | Node | Fields besides node ID and span |
 | --- | --- |
-| `Program` | `schema_version`, `function: Function` |
+| `Program` | `schema_version=1`, `function: Function` |
 | `Function` | `name`, `return_type="int"`, `body: Block` |
-| `Block` | ordered list of declarations/statements |
+| `Block` | `items`: ordered tuple of declarations/statements |
 | `Declaration` | `name`, optional initializer expression |
-| `Assignment` | target identifier, value expression |
-| `If` | condition, then statement, optional else statement |
-| `For` | declaration/assignment initializer, condition, assignment update, body |
+| `Assignment` | `target: Identifier`, `value: Expression` |
+| `If` | `condition`, `then_branch`, optional `else_branch` |
+| `For` | declaration/assignment `initializer`, `condition`, assignment `update`, `body` |
 | `Return` | value expression |
 | `EmptyStatement` | no additional fields |
 | `IntegerLiteral` | integer value |
@@ -127,11 +205,21 @@ have unique IDs and a separate origin map to original IDs/spans.
 | `UnaryExpression` | operator, operand |
 | `BinaryExpression` | operator, left, right |
 
-Serialize nodes with explicit `kind`, fields, span and schema version. Never
-serialize PLY internals. Symbol resolution adds a separate mapping from node IDs
-to symbol IDs; downstream IR uses symbols, avoiding accidental scope ambiguity.
+`UnaryOperator` and `BinaryOperator` are typed string enums with actual operator
+spellings; expression/statement unions provide shared type aliases. Use
+`iter_child_nodes(node)` for immediate children and `walk(node)` for iterative
+preorder traversal. `ast_to_dict(node)` and `ast_to_json(node, indent=2)` serialize
+explicit `kind`, all fields and spans; only the `Program` carries schema version.
+PLY internals are never serialized. Serialization itself recursively visits
+dataclasses and is bounded by Python's recursion limit. Ordinary nested lab
+programs are covered by tests; the CLI handles an exceeded limit without a traceback.
 
-Example to parse in Phase 1 (a specification example, not a current fixture):
+Declaration spans include the semicolon for ordinary declarations; a `for`
+initializer span excludes the header separator. Assignment statements include
+the semicolon, while assignments inside loop headers do not. Phase 2 symbol
+resolution uses a separate node-to-symbol mapping without changing these nodes.
+
+Supported example (the loop structure is exercised by `examples/loops/sum.c`):
 
 ```c
 int main(void) {
@@ -147,11 +235,11 @@ int main(void) {
 }
 ```
 
-Its AST must retain loop initializer/condition/update/body as separate children
-and both return branches. Structured AST output is available in Phase 1; rendered
-AST diagrams wait until Phase 2.
+Its AST retains loop initializer/condition/update/body as separate children and
+both return branches. Structured AST output and rendered AST diagrams
+are implemented. CLI usage and actual output excerpts are in the README.
 
-## Planned three-address IR
+## Implemented three-address IR
 
 Use a typed, non-SSA representation with `Constant`, `SymbolRef`, and `TempRef`
 operands. Source variable storage uses resolved symbol IDs. Allocate temporaries
@@ -176,22 +264,56 @@ into temporaries. Example:
 ```text
 int x = 2 + 3 * 4;
 
-t0 = 3 * 4
-t1 = 2 + t0
-x = t1
+%t0 = 3 * 4
+%t1 = 2 + %t0
+x = %t1
 ```
 
 An `if` branches to explicit then/else or merge labels, joining only paths that
 have not returned. A `for` lowers as initializer → condition → body → update →
 condition, with the false edge to exit. Body returns do not acquire a back edge.
 Early returns terminate blocks. No implicit fallthrough past return is permitted.
+Source after a structural terminal is warned and omitted. This is control-flow
+lowering, not a Phase 3 optimization: arithmetic operations, unary operations,
+copies and constant-condition branch edges remain intact.
+
+`compiler.ir.lower_ir(program)` validates first, then produces a frozen
+`IRProgram(instructions, symbols, schema_version=1, diagnostics=())`. Operands
+are frozen `Constant(value)`, `SymbolRef(symbol_id, name)`, and `TempRef(name)`;
+only symbol/temp references may be destinations. Instruction records have
+mandatory `node_id` and `span` metadata, and typed operator enums from the AST.
+`format_instruction`/`format_ir` provide deterministic text, while consumers use
+the typed records. Temporaries print `%t0`, `%t1`, ... so a C variable named `t0`
+remains distinct. Labels are `L0`, `L1`, ...; unused merge/update labels can leave
+allocation gaps when a branch/body terminates. No constant folding occurs.
+
+`validate`/`analyze` are re-exported by `compiler.ir`; their implementation lives
+in `compiler/semantic.py` to keep binding/dataflow independent from lowering.
+
+## Implemented CFG and diagrams
 
 CFG leaders are entry, branch targets and instructions following terminators.
 Partition real IR instructions into basic blocks, with `true`, `false`, `jump`,
 `fallthrough`, and `return` edges as applicable. Use explicit entry/exit nodes;
 return edges lead to exit. Distinguish unreachable blocks when reporting graphs.
-Validate that each label exists, terminators end blocks, and all successors agree
-with the IR. DOT rendering uses structural node IDs with escaped user labels.
+`build_cfg` validates that labels exist and are unique, operators/operands are
+typed, and instructions carry metadata. Basic blocks retain TAC labels and use
+deterministic `B0`, `B1`, ... IDs; entry/exit are synthetic graph nodes. The first
+instruction, every label and every post-terminator instruction is a leader.
+Return edges lead only to exit. Loop-back edges are actual jump edges to the
+condition block, not an inferred source-level annotation. Reachability follows
+both conditional successors. Manual TAC may contain unreachable blocks or a
+final fallthrough-to-exit edge; semantic validation prevents a missing return
+when IR is generated from user source.
+
+`format_cfg` prints block contents and typed edges. `ast_to_dot` shows actual
+syntax children and their field roles; `cfg_to_dot` shows actual blocks/TAC and
+edge kinds, with unreachable blocks styled distinctly. Both escape user labels
+and need no external executable. `render(dot, path, format)` writes a `.dot`
+sidecar, then optionally invokes Graphviz with an argument list for SVG/PNG/PDF.
+Missing/failed rendering is explicit and preserves the DOT file. The CLI supports
+`--check`, `--tac`, `--cfg`, `--ast-dot`, `--cfg-dot`, `--output` and `--format`.
+Syntax-only Phase 1 modes remain unchanged.
 
 ## Planned transformation correctness
 

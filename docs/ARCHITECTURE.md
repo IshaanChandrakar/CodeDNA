@@ -1,7 +1,7 @@
 # Architecture
 
-Status: design contract only; no pipeline stages are implemented. Updated
-2026-10-09. The current executable behavior is limited to installation smoke tests.
+Status: Phases 1–2 implemented; Phases 3–7 remain design contracts. Updated
+2026-10-15. The frontend, semantic checks, TAC, CFG, diagrams and CLI are operational.
 
 ## Research pipeline
 
@@ -32,7 +32,7 @@ flowchart TD
     Baselines --> UI
 ```
 
-AST → CFG is implemented through the common AST → IR lowering in Phase 2.
+AST → CFG uses the common validated AST → IR lowering implemented in Phase 2.
 This avoids two conflicting definitions of branch/loop execution order. Ishaan
 owns CFG partitioning and edges; Zayn owns the preceding lowering. The custom
 three-address IR is the lab's compiler IR; LLVM IR is a later inspection artifact,
@@ -40,16 +40,23 @@ not a substitute for implementing it.
 
 ## Boundaries and ownership
 
-The signatures below are **planned APIs**, not callable functions today.
+The Phase 1–2 signatures below are implemented; Phase 3 onward are **planned
+APIs**, not callable functions today. `compiler/diagnostics.py` shares frontend
+source mapping and exceptions, and `compiler/__main__.py` supplies the requested
+`python -m compiler` CLI, now extended with semantic/TAC/CFG/graph inspection.
+`compiler/semantic.py` isolates binding and dataflow analysis from typed IR and
+lowering; `compiler.ir.validate` re-exports the original planned API. This small
+module split avoids mixing the symbol environment with instruction construction.
 Use Python dataclasses and type annotations, explicit result records, and
 schema-versioned JSON. Do not pass PLY-specific objects between stages.
 
-| File / phase | Owner | Planned interface and responsibility |
+| File / phase | Owner | Interface and responsibility (Phases 1–2 implemented) |
 | --- | --- | --- |
 | `compiler/lexer.py` / 1 | Ishaan | `tokenize(source: str) -> list[TokenRecord]`; fresh PLY lexer per source; token value and source span |
 | `compiler/parser.py` / 1 | Ishaan | `parse(source: str) -> Program`; PLY grammar, precedence, AST construction; fail with structured diagnostics |
 | `compiler/ast_nodes.py` / 1 | Ishaan | Common nodes and `SourceSpan`; `ast_to_dict(program) -> dict` for deterministic structured output |
-| `compiler/ir.py` / 2 | Zayn | `validate(program: Program) -> None`, then `lower_ir(program: Program) -> IRProgram`; declarations, symbol scope, defined reads, and real three-address lowering |
+| `compiler/semantic.py` / 2 | Zayn | `analyze(program) -> SemanticAnalysis`, `validate(program) -> None`; lexical binding, initialization/dataflow, diagnostics |
+| `compiler/ir.py` / 2 | Zayn | Re-exports `validate`; `lower_ir(program: Program) -> IRProgram` validates and performs real three-address lowering; `format_ir(ir) -> str` |
 | `compiler/cfg.py` / 2 | Ishaan | `build_cfg(ir: IRProgram) -> ControlFlowGraph`; leaders, blocks, typed edges, entry/exit |
 | `visualization/graph_renderer.py` / 2 | Ishaan | `ast_to_dot(program) -> str`, `cfg_to_dot(cfg) -> str`, `render(dot, path, format) -> Path`; deterministic DOT, optional external rendering |
 | `transformations/constant_folding.py` / 3 | Zayn | `propagate_and_fold(program: Program) -> TransformationResult`; scoped constant environments and safe arithmetic |
@@ -74,12 +81,50 @@ interface-preserving change. No new module is created merely to reserve a name.
 - `TokenRecord`: token type, typed value, original lexeme, span.
 - `Diagnostic`: stage, stable code, message, span if available. Lexing and parsing
   raise dedicated exceptions containing diagnostics; no partial AST on failure.
+  Phase 2 adds the `semantic` stage, `SemanticError`, and optional `severity`
+  (`error` by default, `warning` for unreachable statements). Existing Phase 1
+  constructor calls and error strings retain their behavior.
 - `Program`: schema version, one `main` function; nodes described in
   [COMPILER_DESIGN.md](COMPILER_DESIGN.md). Analysis annotations remain separate
   from syntax nodes so transformations do not corrupt the baseline.
 - `IRProgram`: ordered instructions, explicit labels, symbol table and source
   provenance. `ControlFlowGraph`: block IDs, instruction lists, typed edges.
   Stable IDs are internal identities, not similarity features.
+
+`SemanticAnalysis` holds immutable `symbols`, node-to-symbol `bindings`, warning
+`diagnostics`, and `unreachable_node_ids`. It never mutates the AST. The binder
+checks every reference, including dead syntax; the checker evaluates conservative
+flow facts and omits evaluated-read/arithmetic checks for structurally dead source.
+Every declared variable name is unique throughout `main`; nested/disjoint blocks
+cannot reuse a name. Block and `for` scopes restrict visibility independently.
+Definite initialization joins continuing branches by intersection. A loop can run
+zero times; loop-written constants are discarded to avoid stale diagnostic facts.
+Both arms of even a literal conditional remain possible. These rules are a
+conservative subset validator, not a proof of runtime arithmetic safety.
+
+IR records use `Constant`, `SymbolRef(symbol_id, name)`, and `TempRef(name)`.
+Every instruction retains AST `node_id` and `span`; `IRProgram` has
+`instructions`, `symbols`, `schema_version=1`, and warning `diagnostics`. Text
+formats use `%t0` temporaries and `L0` labels, deterministic per lowering. Arithmetic
+is never folded; constant branch edges are never pruned. Structurally dead source
+following an unconditional return is warned and omitted while lowering. Loop
+conditions are recomputed at their header, and only continuing body paths reach
+the update/back edge.
+
+CFG records use `BasicBlock(block_id, instructions, reachable)`,
+`Edge(source, target, kind)` and `ControlFlowGraph(blocks, edges, entry, exit)`.
+Entry/exit are synthetic IDs; blocks are `B0`, `B1`, ... in TAC order. Leaders are
+entry, every label and every post-terminator instruction. Reachability is graph
+reachability over both conditional edges, not a runtime-path claim. Malformed
+hand-built TAC (invalid operands/operators, duplicate/unresolved labels) is rejected
+with `ValueError`; source programs are semantically validated before lowering.
+
+`ast_to_dot` and `cfg_to_dot` are deterministic, pure-Python exporters with escaped
+labels. They do not require an external executable. `render` saves the `.dot`
+sidecar before optional Graphviz SVG/PNG/PDF rendering. Missing or failed renderers
+raise `GraphRenderError` (including `GraphvizUnavailableError`) with `dot_path`,
+so the CLI can report an actionable error and preserve inspectable output.
+Graphviz 16.1.0 was used for actual AST and CFG render validation in Phase 2.
 
 ### Transformations
 
@@ -155,9 +200,9 @@ calibrated against held-out examples, not presented as probabilities or proofs.
 
 ## Integration policy
 
-Phase 1 defines the shared AST contract first. Ishaan and Zayn agree on IDs,
-scope annotations and label/operand forms before Phase 2 implementation. Zayn
-and Pranav agree on emitted variants and full-return validation before Phase 3
+Phases 1–2 retain the shared AST and establish separate symbol annotations,
+typed operands/labels and actual CFG edges. Zayn and Pranav must agree on emitted
+variants and full-return validation before Phase 3
 acceptance. Phase 3 uses a small test-only Clang/reference harness; production
 compilation, subprocess control and timeouts begin in Phase 4. This is validation
 support, not early implementation of the runtime package.

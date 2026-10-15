@@ -1,4 +1,4 @@
-"""Setup smoke tests only; no compiler behavior has been implemented yet."""
+"""Original installation smoke tests retained alongside the frontend suite."""
 
 from importlib import import_module
 
