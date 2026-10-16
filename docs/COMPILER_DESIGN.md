@@ -1,7 +1,7 @@
 # Compiler design
 
-Status: Phases 1–2 lexical/syntax grammar, AST, semantic checks, TAC, CFG and
-visualization implemented; transformations remain planned. Updated 2026-10-15.
+Status: Phases 1–3 grammar, AST, analysis, TAC/CFG, diagrams, transformations and
+pure C emission implemented. Machine execution remains pending. Updated 2026-10-16.
 This document is the shared frontend/representation contract.
 
 ## Language boundary
@@ -179,9 +179,10 @@ exit statuses can hide differences (for example, returns of 0 and 256).
 `compiler/ast_nodes.py` uses frozen, slotted, keyword-only dataclasses with one
 `SourceSpan` per node and deterministic per-parse `n0`, `n1`, ... IDs allocated
 during reductions. IDs support provenance/diagnostics, not semantic matching.
-Block items are immutable tuples in Python and arrays in JSON. Future
-transformations return fresh nodes with unique IDs and an origin map; this map
-and the passes are not implemented in Phase 1.
+Block items are immutable tuples in Python and arrays in JSON. Phase 3
+transformations rebuild every syntax node, retaining IDs for one-to-one rewrites
+and allocating unique deterministic IDs for copies; separate origin maps retain
+input provenance without changing AST classes or source spans.
 
 `SourceSpan` fields are `start_line`, `start_column`, `end_line`, `end_column`,
 `start_offset`, `end_offset`. Lines/columns are one-based, character offsets
@@ -285,7 +286,8 @@ mandatory `node_id` and `span` metadata, and typed operator enums from the AST.
 `format_instruction`/`format_ir` provide deterministic text, while consumers use
 the typed records. Temporaries print `%t0`, `%t1`, ... so a C variable named `t0`
 remains distinct. Labels are `L0`, `L1`, ...; unused merge/update labels can leave
-allocation gaps when a branch/body terminates. No constant folding occurs.
+allocation gaps when a branch/body terminates. Lowering alone does not fold;
+Phase 3 applies explicit AST passes before ordinary validated lowering.
 
 `validate`/`analyze` are re-exported by `compiler.ir`; their implementation lives
 in `compiler/semantic.py` to keep binding/dataflow independent from lowering.
@@ -315,27 +317,113 @@ Missing/failed rendering is explicit and preserves the DOT file. The CLI support
 `--check`, `--tac`, `--cfg`, `--ast-dot`, `--cfg-dot`, `--output` and `--format`.
 Syntax-only Phase 1 modes remain unchanged.
 
-## Planned transformation correctness
+## Implemented transformations
 
-Constant propagation uses scoped environments with unknown/known-constant facts.
-Assignment updates the environment; branches use copies and join only facts that
-agree on reachable successors. For loops, conservatively invalidate every
-variable the loop can write before folding the condition/body, and invalidate
-those facts after the loop. Preserve evaluation and control flow when safety is
-not established. Folding computes genuine safe integer operations; it must not
-turn `x * 0` into zero if doing so removes an undefined subexpression.
+### Constant environment and transfer rules
 
-Initial unrolling fully expands only small counted loops (at most 32 iterations):
-constant start/bound, condition `i < bound`, positive constant step expressed as
-`i = i + step`, and all induction arithmetic proven in range. The body cannot
-write `i`, declare variables, contain another loop or return, or otherwise change
-the iteration count. Skip every unproven loop with a reason. Keep initializer,
-each cloned body and each update, including the final induction value. Preserve
-the scope of a loop-local declaration with a block. Zero-iteration loops retain
-initializer effects. No speculative partial unrolling or fabricated variants.
+`propagate_and_fold(program)` in `transformations/constant_folding.py` validates
+the input, resolves symbols with the existing analyzer, and maps symbol IDs to
+known signed 32-bit integers. Absence means unknown. It transforms a fresh tree:
 
-Validate both passes structurally and through exact full-return comparisons on
-defined fixtures. Include negative division/remainder, branching, zero-iteration
-loops, boundary iteration counts, modified induction variables, return-in-loop,
-and skipped overflow cases. Dynamic agreement supports tested cases; it does
-not constitute proof of equivalence beyond the pass's stated preconditions.
+| Construct | Transfer / rewrite |
+| --- | --- |
+| Literal | Copy; its value is known if in range |
+| Identifier read | Replace with a literal only if the symbol has a known fact |
+| Declaration / assignment | Rewrite value, replace target fact if known, otherwise invalidate; never rewrite the target identifier |
+| Unary/binary expression | Recursively rewrite operands and fold only a fully constant, defined operation |
+| `if` | Rewrite condition but retain control structure; process independent environments; join equal facts on all continuing paths |
+| `return` | Rewrite value and terminate continuing flow |
+| Block | Process in order; remove local facts on exit; copy structurally dead syntax without propagating into it |
+| `for` | Rewrite initializer, clear every body/update-written fact before condition/body; process update from continuing body facts; keep only initializer effects for untouched variables after exit |
+
+A missing `else` is an unchanged alternative. Returning alternatives do not
+dilute facts on a surviving path. A loop can run zero times, so no body/update
+fact escapes. Nested loop assignments, including assignment initializers, count
+as writes. Input no-shadowing/scope rules stay unchanged.
+
+Arithmetic helpers in `transformations/common.py` compute C signed 32-bit
+addition/subtraction/multiplication, unary signs and comparisons. Division uses
+integer magnitudes and sign restoration to truncate toward zero; remainder is
+`a - q*b`. Zero divisors, signed overflow, and INT_MIN divided/remainder by -1
+return no fold. No `x*0`, `x-x`, reassociation or condition-pruning identities are
+introduced. An unsafe raw expression retains its entire structure, including
+otherwise safe child expressions, so `0*(1/0)` and `x/(1-1)` are not disguised.
+
+The public `fold_expression(expression)` helper has no variable environment or
+whole-program validation; it permits inspecting refusal on invalid raw arithmetic.
+Full program passes require semantic validity. `IntegerLiteral` may hold a folded
+negative value internally without broadening source-token syntax. The combined
+propagation/folding pass reaches a stable repeated AST; a second application
+commits no further rewrites to that result.
+
+### Canonical loop proof and expansion
+
+`unroll_loops(program, max_iterations=32)` accepts declaration/assignment
+initializers with defined constant-expression starts, conditions with induction
+identifier on the left of `<`, `<=`, `>` or `>=` and a constant-expression bound,
+and updates `i = i + amount` or `i = i - amount`. Amount is a constant expression;
+the mathematical signed step must be nonzero and agree with condition direction.
+The explicit Phase 3 request extends the original positive-only plan to safe
+negative steps and inclusive/descending comparisons. Reversed operands, `!=`,
+unknown headers and uncertain termination remain ineligible.
+
+For positive step d, strict count is `max(0, ceil((bound-start)/d))` and inclusive
+count is `max(0, floor((bound-start)/d)+1)`. Descending cases use `start-bound`
+and `abs(step)`. Implementation uses integer floor/ceiling formulas, never a
+simulation that could hang. It proves `final = start + count*step` fits signed
+32-bit. Monotonicity plus in-range endpoints proves all induction updates are
+in range, including the last update before the condition becomes false. Proof
+arithmetic uses Python integers; generated operations remain the original C AST.
+
+Eligible bodies contain assignments, nested blocks and empty statements only.
+Any induction write, declaration, conditional, return or nested `for` is rejected
+with a source-located reason. No inner loop is expanded inside an outer loop.
+The default maximum is 32; the configuration range 0..1024 bounds expansion.
+The replacement is a block containing initializer, then each body/update copy in
+order. Every copied subtree gets fresh IDs. The initializer occurs exactly once,
+loop-local declaration scope is preserved, and assignment-form induction values
+remain visible afterward. Zero trips retain only initializer effects.
+
+Body operations are copied unchanged; unrolling alone does not substitute i or
+fold arithmetic. A later constants pass can simplify those copies. Revalidation
+may reveal a previously unknown division/overflow; in that case the whole pass
+rolls back and reports `REVALIDATION_FAILED`. The proof establishes control/count
+safety for defined source executions, not arbitrary runtime arithmetic safety.
+
+### Reports, sequencing and provenance
+
+`TransformationResult(program, report, origins)` always has a fresh program.
+`TransformationReport` records pass name/version, parameters, status, actual
+committed statistics and source-located decisions. Status is `applied` for a
+committed change; without changes, unsafe candidates give `rejected`, and no
+opportunity gives `not_applicable`. Applied passes may also report other skipped
+loops. Revalidation rejection restores a fresh input and zeroes committed stats.
+
+One-to-one rewrites keep IDs/spans; cloned copies allocate collision-free `uN`
+IDs while preserving spans and origin mapping. `apply_transformations` accepts
+explicit ordered `constants`/`unroll` names, including repeats or an empty
+sequence. Its fresh `PipelineResult` contains exact sequence and reports, with
+origins composed back to the initial AST. It continues after rejection using the
+valid preserved input. Default sequence is `constants`, then `unroll`; a final
+`constants` pass is explicit when further simplification is desired.
+
+Statistics count committed folds, propagated identifier reads, loops replaced,
+iterations expanded and changed AST nodes. They are not machine instructions
+or performance measurements. Reports are deterministic and JSON-serializable.
+
+### C emission and validation boundary
+
+`compiler/codegen.py` implements pure `emit_c(program)`, re-exported from
+`compiler.ir` as planned. The separate module keeps formatting away from IR
+records/lowering. It validates, emits `int main(void)`, fully parenthesizes
+expressions, braces control bodies and preserves names, blocks/scopes and dead
+syntax. Comments/whitespace are not AST fields and are formatted canonically.
+Negative folded literals use unary-minus spelling; INT_MIN is emitted as
+`(-2147483647 - 1)`, respecting the unchanged decimal literal bound.
+
+Tests use parse/analyze/TAC/CFG round trips and independently derived full integer
+expectations via test-only arithmetic/TAC oracles. They cover safety refusals,
+scope/freshness, deterministic reports, stable repeats, signed boundaries and
+ordering. The current request forbids Clang/process/runtime-equivalence code in
+Phase 3; those checks belong to Phase 4. Emission is source generation, not
+compilation or execution, and these tests are not a universal equivalence proof.

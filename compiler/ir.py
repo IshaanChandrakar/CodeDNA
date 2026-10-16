@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TypeAlias
 
 from compiler import ast_nodes as ast
+from compiler.codegen import emit_c
 from compiler.diagnostics import Diagnostic
 from compiler.semantic import SemanticAnalysis, Symbol, analyze, validate
 

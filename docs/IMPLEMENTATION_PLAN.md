@@ -1,6 +1,6 @@
 # Implementation plan
 
-Updated 2026-10-15. Setup and Phases 1–2 are complete. Phases 3–7 below are pending;
+Updated 2026-10-16. Setup and Phases 1–3 are complete. Phases 4–7 below are pending;
 phase numbers are acceptance gates, not calendar dates.
 Implement one phase at a time and preserve earlier working behavior.
 
@@ -13,8 +13,9 @@ Setup (M0) → Phase 1 (M1) → Phase 2 (M2) → Phase 3 (M3)
 
 The line wraps for readability; the dependency chain is strictly sequential.
 Within Phase 2, shared AST semantic validation and IR lowering precede CFG
-partitioning. Phase 3 validation may use a small test-only compiler/reference
-harness; runtime product modules remain deferred until Phase 4.
+partitioning. Phase 3 validates pure source/AST/TAC structure and independently
+expected values; the current request reserves all Clang/process-equivalence
+infrastructure for Phase 4.
 
 | Milestone | Observable outcome | Gate reviewers |
 | --- | --- | --- |
@@ -105,10 +106,11 @@ DOT without claiming a rendered image. Example diagrams are under ignored
 
 Binding/dataflow lives in `compiler/semantic.py`, a justified separation from
 representation/lowering; `compiler.ir.validate` preserves the planned entry point.
-Known constants support semantic diagnostics only. Source operations and branch
-conditions remain explicit in TAC, and Phase 3 transformations have not started.
+At the M2 gate, known constants supported semantic diagnostics only. Source
+operations and branch conditions remained explicit in TAC; Phase 3 had not yet
+started at that historical milestone.
 
-## Phase 3 — Compiler transformations
+## Phase 3 — Compiler transformations (complete)
 
 **Dependency:** M2 and agreed source/IR provenance. **Owner:** Zayn; Pranav
 supports correctness testing.
@@ -117,23 +119,43 @@ supports correctness testing.
    emitted subset C through the frontend and validate it.
 2. Implement scoped constant propagation, conservative branch joins and loop
    invalidation, plus safe C integer constant folding. Preserve unknown values.
-3. Implement small full loop unrolling under the documented eligibility rules;
-   preserve initializer effects, updates, final induction value and scope.
-4. Produce independent pass variants and structured applied/skipped reports,
-   retaining an unchanged baseline AST and re-lowering each variant.
-5. Validate original versus emitted baseline and each transformed program using
-   defined fixtures, a reference evaluator or a small test-only Clang harness.
-   Observe full integer returns, not merely low-byte exit codes. Add property or
-   parametrized tests where they meaningfully cover safety boundaries.
+3. Implement small full loop unrolling under documented constant-header rules,
+   including safe positive/negative steps and < <= > >= comparisons as explicitly
+   requested. Preserve initializer effects, updates, final induction and scope.
+4. Produce independent variants and explicit ordered combinations with
+   applied/not-applicable/rejected reports, statistics and provenance. Retain a
+   fresh unchanged baseline and revalidate/re-lower every candidate.
+5. Validate structural behavior, emitted-source round trips and independently
+   derived full integer expectations with test-only arithmetic/TAC oracles. Do
+   not build Clang/process/runtime-equivalence infrastructure in Phase 3; this
+   follows the current request's strict boundary. Add parametrized safety tests.
 
-**Acceptance:** actual changed AST/IR/source for eligible examples; unchanged
-baseline; explicit skip reasons for unsafe or unsupported loops; exact full
-returns on the validation corpus; coverage of branch joins, assignments in loops,
+**Acceptance:** actual changed AST/IR/source for eligible examples; fresh unchanged
+baseline; explicit skip reasons for unsafe or unsupported loops; independently
+expected full integer results in test-only oracles; coverage of branch joins, assignments in loops,
 negative division/remainder, undefined-arithmetic refusal, zero trips, iteration
 limit, induction writes and loop returns; no benchmark data claimed yet.
 
-**Deliverable:** executable original/transformed variants and tested correctness
-within the declared subset and transformation preconditions.
+**Deliverable:** emitted original/transformed subset C, fresh transformed ASTs,
+genuine TAC/CFGs, deterministic reports and tested safety within the declared
+preconditions. Machine compilation, execution and runtime equivalence are pending.
+
+**Acceptance evidence (2026-10-16):** **811 passed, 0 failed, 0 skipped**, including
+all 530 Phase 1–2 cases. The 281 new cases cover constant/folding safety (86),
+unrolling/count/overflow/scope (70), source emission (51), combined pipeline,
+provenance and reports (35), and actual CLI behavior (39). Seven new C examples
+demonstrate constants, ascending/descending loops, composition and rejected
+induction writes/declarations/limits. Actual constant TAC changes from seven
+instructions to `base = 14`, `adjusted = 10`, `return 3`; explicit
+`constants → unroll → constants` expands four combined-example iterations and
+ends at `return 146`. Reports contain real edit counts and rejection reasons,
+not runtime or hardware results.
+
+Common helpers supply safe signed arithmetic, fresh IDs and transactional
+revalidation. Rejected candidates restore a fresh input and zero committed stats.
+The emitter resides in `compiler/codegen.py`, with the planned `compiler.ir.emit_c`
+re-export; no language/API expansion is needed. Source/TAC/report/graph artifacts
+are regenerable under ignored `results/phase3/`. No dependencies changed.
 
 ## Phase 4 — Compilation and execution
 
@@ -242,10 +264,10 @@ enabled without an explicit execution-isolation decision.
 
 **Deliverable:** demonstration-ready CodeDNA and an honest lab evaluation.
 
-## Exactly what begins next (Phase 3; not started)
+## Exactly what begins next (Phase 4; not started)
 
-M2 is accepted. A subsequent Phase 3 request should add AST-to-C emission, scoped
-constant propagation/folding, safe small-loop unrolling, applicability reports
-and full-return correctness tests on defined inputs. Revalidate/re-lower variants
-and preserve the Phase 1–2 APIs. No transformation or executable variant was
-created in the present task; it stops at M2.
+M3 is accepted. A subsequent Phase 4 request should implement Clang compilation
+and controlled execution of emitted baseline/variants, identical execution cases
+and environment, full-return/output equivalence, compile/runtime errors, cleanup
+and timeouts. Preserve transformation reports and public frontend/analysis APIs.
+The present task stops at M3; no Phase 4 runtime modules or machine checks exist.

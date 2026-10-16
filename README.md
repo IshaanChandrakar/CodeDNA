@@ -13,12 +13,12 @@ Repository: [Trifecta-tech/CompilerFallSem](https://github.com/Trifecta-tech/Com
 
 ## Current status
 
-**Phases 1 and 2 are complete:** a genuine PLY frontend, typed AST, semantic
-analysis, typed three-address code, TAC-derived CFGs, and AST/CFG DOT diagrams
-with optional SVG/PNG/PDF rendering. The full suite passes **530 tests** on
-macOS with Python 3.14.5 and PLY 3.11, including all 243 Phase 1 tests.
-**Phases 3–7 are pending.** Transformations, C execution, runtime measurements,
-fingerprints and the dashboard are not implemented.
+**Phases 1–3 are complete:** the PLY frontend, typed AST, semantic analysis, TAC,
+CFGs/diagrams, constant propagation/folding, conservative full loop unrolling,
+ordered pass reports and pure C source emission. The full suite passes **811
+tests** on macOS with Python 3.14.5 and PLY 3.11, including all **530 Phase 1–2
+tests**. **Phases 4–7 are pending.** There is no machine compilation/execution,
+runtime-equivalence service, benchmark, fingerprint or dashboard implementation.
 
 The research hypothesis is to be evaluated: a similar fingerprint is evidence
 for investigation, not proof of semantic equivalence. Timing noise, constant
@@ -54,7 +54,7 @@ and external tools still need an implementation-stage compatibility matrix.
 | PLY | Genuine lexer and LALR parser | Phase 1 |
 | Python `graphviz` | Declared visualization binding; DOT export itself uses pure Python | Phase 2 |
 | Graphviz `dot` executable | Optional rendering of DOT to SVG/PNG/PDF | Phase 2 |
-| Clang/LLVM | Compile C and inspect LLVM IR | Phases 3–5 |
+| Clang/LLVM | Compile C and inspect LLVM IR | Phases 4–5 |
 | pytest | Setup and module tests | Now and every phase |
 | Streamlit | Demonstration dashboard | Phase 7 |
 | Linux `perf` | Executed hardware instruction counts | Phase 5, if permitted |
@@ -99,8 +99,9 @@ python -m pytest
 python -m pytest --collect-only -q
 ```
 
-The suite includes all 243 Phase 1 tests and 287 Phase 2 tests for semantics,
-TAC behavior, CFGs, diagrams and CLI integration. A small test-only TAC evaluator
+The suite includes all 530 Phase 1–2 tests and 281 Phase 3 tests for safe arithmetic,
+constant environments, unroll proofs/limits, source emission, pass sequencing,
+revalidation rollback, freshness/provenance, reports and CLI behavior. Small test-only TAC evaluators
 checks expected return values and branch/loop behavior; it is not a production
 runtime or measurement backend. Nine rendering cases require external Graphviz
 and skip explicitly without it. Missing-renderer and renderer-failure tests run
@@ -109,6 +110,8 @@ independently of the local installation. No hardware counters or benchmarks run.
 ```sh
 python -m pytest tests/test_semantic.py tests/test_ir.py tests/test_cfg.py
 python -m pytest tests/test_graph_renderer.py tests/test_phase2_cli.py
+python -m pytest tests/test_constant_folding.py tests/test_loop_unrolling.py tests/test_codegen.py
+python -m pytest tests/test_transformations.py tests/test_phase3_cli.py
 ```
 
 ## Phase 1 usage
@@ -281,6 +284,128 @@ zero divisors, and `INT_MIN / -1` or `INT_MIN % -1` are undefined in the study's
 32-bit signed-int model. The future execution backend must verify the target and
 use defined inputs. Phase 2 does not execute user C or measure performance.
 
+## Phase 3 usage
+
+```sh
+python -m compiler --tac examples/transformations/constants.c
+python -m compiler --transform constants --tac examples/transformations/constants.c
+python -m compiler --transform constants --report examples/transformations/constants.c
+python -m compiler --transform unroll --report examples/transformations/unroll_negative.c
+python -m compiler --transform unroll --report examples/transformations/rejected_induction.c
+python -m compiler --transform unroll --max-unroll 4 --tac examples/transformations/unroll_positive.c
+python -m compiler --transform constants --transform unroll --transform constants --c examples/transformations/combined.c
+python -m compiler --transform constants --transform unroll --transform constants --cfg-dot --format svg --output results/combined_cfg.svg examples/transformations/combined.c
+```
+
+Repeat `--transform constants` or `--transform unroll` to specify the exact order;
+combinations are explicitly labeled sequences. With no inspection mode, a
+transformation request defaults to `--report`. Existing `--ast`, `--tac`, `--cfg`,
+`--check` and graph modes inspect the transformed tree when passes are requested.
+`--tokens` remains original-source-only and cannot be combined with a pass.
+`--c` emits validated subset C, without compiling or executing it; it also works
+without passes for a canonical baseline. `--report` requires at least one pass.
+
+Exit codes remain 0 for successful inspection (including rejected/not-applicable
+passes), 1 for source errors, and 2 for argument/file/render errors. Unsafe passes
+return a fresh preserved input tree and a reason; non-report modes also print
+rejection reasons to stderr. `--output` saves source, TAC, JSON or graphs with the
+existing input-file/sidecar overwrite protection. No performance values are
+generated by any transformation command.
+
+Actual TAC for `examples/transformations/constants.c` before the pass:
+
+```text
+%t0 = 3 * 4
+%t1 = 2 + %t0
+base = %t1
+%t2 = base - 4
+adjusted = %t2
+%t3 = adjusted / 3
+return %t3
+```
+
+After `--transform constants --tac`:
+
+```text
+base = 14
+adjusted = 10
+return 3
+```
+
+Actual report fields for the example above and the rejected induction-write
+example (selected fields; full JSON also includes parameters, statistics and spans):
+
+| Example / pass | Status | Actual report evidence |
+| --- | --- | --- |
+| `constants.c` / `constants` | `applied` | 4 expressions folded, 2 references propagated, 6 changed AST nodes |
+| `combined.c` / `constants → unroll → constants` | all 3 `applied` | 1 loop expanded into 4 iterations; final TAC instruction `return 146` |
+| `rejected_induction.c` / `unroll` | `rejected` | `INDUCTION_WRITE`: body assigns to induction variable; 0 loops unrolled |
+| `rejected_declaration.c` / `unroll` | `rejected` | `DECLARATION_IN_BODY`: duplication violates the unique-name scope policy |
+| `rejected_limit.c` / `unroll` | `rejected` | `ITERATION_LIMIT`: 40 trips exceeds the default 32 |
+| `basic/minimal.c` / `unroll` | `not_applicable` | No eligible change; all counters remain zero |
+
+`unroll_positive.c` and `unroll_negative.c` retain their final induction values:
+their hand-derived results are 64 and 89 respectively after a final constants
+pass. In `combined.c`, i=2,3,4,5 contributes 14, final i=6, and 14*10+6=146.
+These are semantic expectations checked in tests, not timing or hardware results.
+
+### Transformation safety and interfaces
+
+The constant environment maps resolved symbol IDs to known signed 32-bit integers.
+Assignments update/invalidate facts; branch joins retain only values agreeing on
+all continuing paths. Loop-written entry facts are cleared before condition/body
+rewrites and on exit; the zero-trip path prevents body facts from escaping.
+Only fully known, defined operations fold. There is no branch pruning, expression
+reassociation, or algebraic identity rewrite that could erase an unsafe operand.
+Undefined raw-expression folds preserve the complete original expression.
+`fold_expression()` is a standalone expression helper without whole-program
+validation or a variable environment; full passes always validate their input.
+
+Unrolling accepts constant-expression starts/bounds and `i <`, `<=`, `>`, `>=`
+bound with `i = i + constant` or `i = i - constant`. Positive and negative steps
+must move toward the bound. Counts are derived mathematically, not by simulating
+a potentially nonterminating loop. Bodies contain only assignments, nested blocks
+and empty statements: induction writes, declarations, conditionals, returns and
+nested loops are rejected. All induction values, including the final executed
+update, must fit signed 32-bit int. Initializer effects, iteration order, final
+induction values and loop-local scope are preserved. Zero trips retain the
+initializer. The default limit is 32 iterations; `--max-unroll` accepts 0..1024.
+No inner loop is independently expanded inside an ineligible outer loop.
+
+Every pass rebuilds all AST nodes. One-to-one rewrites retain source IDs/spans;
+duplicated bodies/updates get unique deterministic IDs and an origin map.
+Candidates undergo semantic revalidation. If that reveals a new static fault,
+the whole pass rolls back to a fresh input tree and zero committed-change
+statistics (`REVALIDATION_FAILED`). A report can be `applied` with decisions for
+other skipped loops; when no change commits, unsafe decisions mean `rejected`,
+while absence of an eligible opportunity means `not_applicable`.
+
+```python
+from compiler.ir import emit_c, lower_ir
+from transformations import apply_transformations, propagate_and_fold, unroll_loops
+
+constant_variant = propagate_and_fold(program)
+unrolled_variant = unroll_loops(program, max_iterations=32)
+combined = apply_transformations(program, ("constants", "unroll", "constants"))
+print(combined.to_json())
+print(emit_c(combined.program))
+transformed_ir = lower_ir(combined.program)
+```
+
+Results contain fresh programs, serializable reports and read-only provenance.
+Pipeline origins compose back to the initial source tree. Constant passes reach
+a stable repeated result; repeated unrolling finds no loops in already expanded
+syntax. Folded negative values are legal internal integer nodes; emitted C uses
+the existing unary syntax, and spells INT_MIN as `(-2147483647 - 1)` so the lexer
+need not accept a larger literal. Emitted source is parsed/validated in tests.
+
+This is a conservative subset, not a universal equivalence or runtime safety
+proof. Runtime-dependent faults, termination, arbitrary C, adaptive pass selection
+and machine behavior remain outside Phase 3. Test-only arithmetic/TAC oracles
+check independently expected values; no C process or runtime-equivalence pipeline
+is created. Actual local reports, emitted C and a transformed CFG can be
+regenerated under ignored `results/phase3/` using `--output`.
+
 ## Current directory structure
 
 ```text
@@ -294,8 +419,14 @@ CodeDNA/
 │   ├── parser.py
 │   ├── semantic.py
 │   ├── ir.py
+│   ├── codegen.py
 │   └── cfg.py
-├── transformations/__init__.py
+├── transformations/
+│   ├── __init__.py
+│   ├── common.py
+│   ├── constant_folding.py
+│   ├── loop_unrolling.py
+│   └── pipeline.py
 ├── runtime/__init__.py
 ├── fingerprint/__init__.py
 ├── visualization/
@@ -305,6 +436,7 @@ CodeDNA/
 │   ├── basic/       # 6 valid C examples and .gitkeep
 │   ├── loops/       # 3 valid C examples and .gitkeep
 │   ├── invalid/     # 6 intentionally invalid C examples
+│   ├── transformations/  # 7 Phase 3 success/rejection examples
 │   └── comparison/.gitkeep
 ├── tests/
 │   ├── test_setup.py
@@ -316,7 +448,12 @@ CodeDNA/
 │   ├── test_ir.py
 │   ├── test_cfg.py
 │   ├── test_graph_renderer.py
-│   └── test_phase2_cli.py
+│   ├── test_phase2_cli.py
+│   ├── test_codegen.py
+│   ├── test_constant_folding.py
+│   ├── test_loop_unrolling.py
+│   ├── test_transformations.py
+│   └── test_phase3_cli.py
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── IMPLEMENTATION_PLAN.md
@@ -329,8 +466,11 @@ CodeDNA/
 └── README.md
 ```
 
-Later transformation and runtime modules, `fingerprint/matrix.py`,
-`fingerprint/similarity.py`, and `app.py` remain absent after Phase 2.
+Later runtime modules, `fingerprint/matrix.py`, `fingerprint/similarity.py`, and
+`app.py` remain absent after Phase 3. `compiler/codegen.py` keeps pure source
+emission separate from IR records, and `compiler.ir.emit_c` retains the planned
+public interface. Shared transformation helpers/reports and explicit sequencing
+live under `transformations/`.
 `compiler/semantic.py` separates binding/dataflow from representation/lowering;
 the planned `validate()` remains available through `compiler.ir`.
 `compiler/diagnostics.py` shares frontend
@@ -382,11 +522,11 @@ and dependencies are in [IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
   evaluation, and integration.
 
 The frontend returns shared AST nodes; semantic analysis and TAC lowering consume
-the AST, and CFG construction consumes TAC. Planned transformations
+the AST, and CFG construction consumes TAC. Implemented transformations
 return fresh ASTs and reports. Runtime consumes emitted C and returns structured
 execution/measurement records. Fingerprinting consumes measurements with explicit
 units, provenance, and missing values. These are design contracts, not existing
-APIs except for the completed Phase 1–2 pipeline. Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+APIs except for the completed Phase 1–3 pipeline. Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Development rules
 
@@ -402,12 +542,13 @@ Benchmark variants with the same compiler flags, inputs, and environment. Verify
 observable results before accepting measurements. Keep raw data and metadata;
 never invent timing values, instruction counts, or similarity scores.
 
-## Next work: Phase 3 (not started)
+## Next work: Phase 4 (not started)
 
-After a separate Phase 3 request, add AST-to-C emission, genuine constant
-propagation/folding, conservative loop unrolling, pass applicability reports and
-equivalence tests on defined inputs. The present task stops at Phase 2. No source
-transformation, emitted variant, compiler runner, benchmark or dashboard is added.
+After a separate Phase 4 request, implement Clang compilation and controlled
+execution of baseline/transformed sources, identical cases/environment, full
+return/output equivalence, failure diagnostics and timeouts. The current task
+stops at Phase 3. No compiler runner, C execution, runtime-equivalence checks,
+benchmark, repeated measurements, fingerprint or dashboard has begun.
 
 ## References
 

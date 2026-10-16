@@ -1,7 +1,8 @@
 # Architecture
 
-Status: Phases 1–2 implemented; Phases 3–7 remain design contracts. Updated
-2026-10-15. The frontend, semantic checks, TAC, CFG, diagrams and CLI are operational.
+Status: Phases 1–3 implemented; Phases 4–7 remain design contracts. Updated
+2026-10-16. Frontend, analysis, TAC/CFG, diagrams, transformations, reports and
+pure C emission are operational; user C is not compiled or executed.
 
 ## Research pipeline
 
@@ -40,7 +41,7 @@ not a substitute for implementing it.
 
 ## Boundaries and ownership
 
-The Phase 1–2 signatures below are implemented; Phase 3 onward are **planned
+The Phase 1–3 signatures below are implemented; Phase 4 onward are **planned
 APIs**, not callable functions today. `compiler/diagnostics.py` shares frontend
 source mapping and exceptions, and `compiler/__main__.py` supplies the requested
 `python -m compiler` CLI, now extended with semantic/TAC/CFG/graph inspection.
@@ -50,7 +51,7 @@ module split avoids mixing the symbol environment with instruction construction.
 Use Python dataclasses and type annotations, explicit result records, and
 schema-versioned JSON. Do not pass PLY-specific objects between stages.
 
-| File / phase | Owner | Interface and responsibility (Phases 1–2 implemented) |
+| File / phase | Owner | Interface and responsibility (Phases 1–3 implemented) |
 | --- | --- | --- |
 | `compiler/lexer.py` / 1 | Ishaan | `tokenize(source: str) -> list[TokenRecord]`; fresh PLY lexer per source; token value and source span |
 | `compiler/parser.py` / 1 | Ishaan | `parse(source: str) -> Program`; PLY grammar, precedence, AST construction; fail with structured diagnostics |
@@ -61,16 +62,20 @@ schema-versioned JSON. Do not pass PLY-specific objects between stages.
 | `visualization/graph_renderer.py` / 2 | Ishaan | `ast_to_dot(program) -> str`, `cfg_to_dot(cfg) -> str`, `render(dot, path, format) -> Path`; deterministic DOT, optional external rendering |
 | `transformations/constant_folding.py` / 3 | Zayn | `propagate_and_fold(program: Program) -> TransformationResult`; scoped constant environments and safe arithmetic |
 | `transformations/loop_unrolling.py` / 3 | Zayn | `unroll_loops(program: Program, max_iterations: int = 32) -> TransformationResult`; conservative eligibility and skipped-loop reasons |
-| `compiler/ir.py` / 3 extension | Zayn | `emit_c(program: Program) -> str`; fully parenthesized expressions and stable statement emission from the shared AST |
+| `transformations/common.py` / 3 | Zayn | Fresh AST cloning/provenance, safe integer arithmetic, immutable statistics/decisions/reports and transactional revalidation |
+| `transformations/pipeline.py` / 3 | Zayn / Pranav | `apply_transformations(program, sequence=("constants", "unroll"), max_iterations=32) -> PipelineResult`; exact ordered passes, composed provenance and report JSON |
+| `compiler/codegen.py` / 3 | Zayn | `emit_c(program: Program) -> str`, re-exported through `compiler.ir`; fully parenthesized subset C, no execution |
 | `runtime/compiler_runner.py` / 4 | Pranav | `compile_source(source, config) -> CompilationResult`, `execute(artifact, case, config) -> ExecutionResult`; no shell interpolation |
 | `runtime/benchmark.py` / 5 | Pranav | `benchmark(variants, cases, config) -> BenchmarkReport`; raw samples, aggregation, validation, and provenance |
 | `fingerprint/matrix.py` / 6 | Pranav | `build_matrix(report) -> ResponseMatrix`; schema alignment, normalization, and missing masks |
 | `fingerprint/similarity.py` / 6 | Pranav | `compare(left, right, config) -> SimilarityResult`; overlap coverage and defined metrics |
 | `app.py` / 7 | All; Pranav integrates | Presentation over those APIs; no duplicate compiler or measurement logic |
 
-The C emitter lives with the shared representation to keep the requested layout
-small. Split it into `compiler/codegen.py` only if code size warrants a documented
-interface-preserving change. No new module is created merely to reserve a name.
+The emitter is a small `compiler/codegen.py` module so formatting/round-trip
+concerns remain separate from typed IR and recursive lowering. The planned
+`compiler.ir.emit_c` API is retained by re-export. No compiler-runner module is
+needed for pure source emission. Shared transformation contracts and sequencing
+also have small dedicated modules to avoid duplicating safety/report logic.
 
 ## Shared records
 
@@ -105,8 +110,9 @@ conservative subset validator, not a proof of runtime arithmetic safety.
 IR records use `Constant`, `SymbolRef(symbol_id, name)`, and `TempRef(name)`.
 Every instruction retains AST `node_id` and `span`; `IRProgram` has
 `instructions`, `symbols`, `schema_version=1`, and warning `diagnostics`. Text
-formats use `%t0` temporaries and `L0` labels, deterministic per lowering. Arithmetic
-is never folded; constant branch edges are never pruned. Structurally dead source
+formats use `%t0` temporaries and `L0` labels, deterministic per lowering. Lowering
+alone never folds arithmetic or prunes constant branch edges; Phase 3 explicitly
+rewrites AST expressions before normal lowering. Structurally dead source
 following an unconditional return is warned and omitted while lowering. Loop
 conditions are recomputed at their header, and only continuing body paths reach
 the update/back edge.
@@ -128,16 +134,57 @@ Graphviz 16.1.0 was used for actual AST and CFG render validation in Phase 2.
 
 ### Transformations
 
-`TransformationResult` contains a fresh `Program`, pass name/version, parameters,
-`status` (`applied` or `not_applicable`), changed-node count, and skip reasons.
-The original AST is retained unchanged. Each initial variant applies one pass
-independently to the same baseline. Composed passes are a separately labeled
-future experiment, since pass order changes responses.
+`TransformationResult(program, report, origins)` contains a fresh program, an
+immutable `TransformationReport`, and read-only output-node-to-input-node origins.
+Report fields are `name`, `version="1"`, `status`, `parameters`, `statistics` and
+`decisions`. Statistics count actual committed folds, propagated reads, replaced
+loops, expanded iterations and changed AST nodes. Decisions include source
+node IDs/spans, reason codes/messages and rejected/not-applicable outcomes.
 
-Revalidate transformed ASTs and regenerate their IR/CFG. Constant propagation
-and folding are one documented pass initially. Unrolling is a separate pass.
-The selection is deterministic in the first study; the title's adaptive pass
-selection remains research work and is not an implemented feature.
+Status is `applied` when a change commits (possibly with decisions for other
+loops), `rejected` when no change commits and safety decisions reject candidates,
+or `not_applicable` when no eligible opportunity exists. Source-invalid inputs
+raise the existing semantic diagnostics. Every candidate is revalidated; a failed
+candidate rolls back the whole pass to a fresh input clone with zero committed
+statistics and `REVALIDATION_FAILED`. Reports are JSON-serializable and contain
+no timings or hardware values.
+
+All syntax nodes are rebuilt. One-to-one nodes preserve deterministic IDs/spans;
+duplicated bodies/updates receive collision-free `u0`, `u1`, ... IDs. Origin maps
+retain initial source provenance, including after composition and rollback. Raw
+`fold_expression()` is an expression-only safety helper; full program passes
+validate both input and candidate. Signed arithmetic helpers use C truncation
+toward zero/remainder and refuse undefined results rather than Python overflow
+or signed floor-division semantics.
+
+The environment for `propagate_and_fold` maps symbol IDs to known integers.
+Assignments replace/invalidate facts, branches join agreeing values on continuing
+paths, and loops kill written entry facts before condition/body processing and
+again on exit. Body-established facts can feed the update on every continuing
+path. Block/loop-local facts are removed at scope exit. Control flow remains
+explicit; no speculative branch pruning or unsafe algebraic identities occur.
+
+`unroll_loops` proves canonical constant-expression loop counts mathematically,
+including positive/negative compatible steps, `< <= > >=` bounds, zero trips,
+and final-update signed-range safety. Bodies are assignment/block/empty only;
+induction writes, declarations, branches, returns and nested loops are rejected.
+Expansion retains initializer/body/update order and a block for loop scope.
+Default maximum is 32; supported configuration range is 0..1024.
+
+Individual calls can create independent variants of the same baseline.
+`apply_transformations` additionally supports explicit ordered combinations;
+`PipelineResult` exposes the fresh program, exact sequence, reports, and origins
+composed back to the initial AST. It continues after a rejected pass using that
+pass's valid preserved input. A repeated constant pass is stable; already
+expanded loops are no longer opportunities. Selection is deterministic; adaptive
+selection remains future research, not an implemented feature.
+
+`emit_c` produces canonical, semantically validated subset C with explicit
+parentheses, braces and retained names/scopes. Folded negative literal nodes are
+emitted through supported unary syntax; INT_MIN uses `(-2147483647 - 1)` to
+respect the unchanged frontend literal bound. Emitted sources are round-tripped
+through parse/analyze/TAC/CFG in tests. Phase 3 tests check independently expected
+values with pure arithmetic/TAC oracles, not Clang or process equivalence.
 
 ### Runtime and measurements
 
@@ -154,9 +201,10 @@ have no input operations. Every variant receives the same case and environment.
 
 `ExecutionResult`: stdout/stderr, process status, termination reason, elapsed
 nanoseconds, and full integer return observation when the validation harness is
-enabled. POSIX process exit status alone loses return-value information; Phase 3
-must validate full returned integers using a reference evaluator or a controlled
-C wrapper. A generated wrapper may rename `main` and print its returned `int`;
+enabled. POSIX process exit status alone loses return-value information; Phase 4
+must observe full returns using a controlled C wrapper or equivalent backend.
+Phase 3 supplies test-only expected integer checks without a process harness.
+A future generated wrapper may rename `main` and print its returned `int`;
 wrapper code is internal C, outside the accepted user syntax. Apply the same
 wrapper to all variants and record it in experiment metadata. Full-return
 validation precedes measurement, and successful runs do not prove equivalence
@@ -200,12 +248,12 @@ calibrated against held-out examples, not presented as probabilities or proofs.
 
 ## Integration policy
 
-Phases 1–2 retain the shared AST and establish separate symbol annotations,
-typed operands/labels and actual CFG edges. Zayn and Pranav must agree on emitted
-variants and full-return validation before Phase 3
-acceptance. Phase 3 uses a small test-only Clang/reference harness; production
-compilation, subprocess control and timeouts begin in Phase 4. This is validation
-support, not early implementation of the runtime package.
+Phases 1–3 preserve frontend/analysis interfaces and supply fresh transformed ASTs,
+source emission, provenance and explicit sequence reports. Emitted baseline and
+variant source plus case identity are the Phase 4 boundary. Phase 3 validation
+uses pure expected-value/round-trip tests and no Clang/process harness, following
+the current request's strict boundary. Compilation, execution, subprocess control,
+full-return runtime equivalence and timeouts all begin in Phase 4.
 
 Every phase adds unit tests and any justified integration tests, updates progress,
 and passes its acceptance gate before the next phase starts. Interface changes

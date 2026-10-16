@@ -1,14 +1,14 @@
 # Progress
 
-Updated: 2026-10-15 (Asia/Kolkata). Status is recorded from completed work, not
+Updated: 2026-10-16 (Asia/Kolkata). Status is recorded from completed work, not
 from the existence of a design document or an empty package.
 
 ## Current task
 
-Repository setup (M0) and Phases 1–2 (M1–M2) are complete. The existing checkout
-remains on `main` with the original GitHub remote. This Phase 2 task preserved the
-pre-existing uncommitted Phase 1 files and did not change Git configuration,
-create a branch, commit or push. Phases 3–7 remain pending.
+Repository setup (M0) and Phases 1–3 (M1–M3) are complete. The existing checkout
+remains on `main` with the original GitHub remote. Phase 3 began from the existing
+clean Phase 2 checkout, preserved all 530 prior test cases, and did not change Git
+configuration, create a branch, commit or push. Phases 4–7 remain pending.
 
 | Setup item | Status |
 | --- | --- |
@@ -19,7 +19,7 @@ create a branch, commit or push. Phases 3–7 remain pending.
 | Write architecture, compiler design and seven-phase plan | Complete |
 | Validate dependency installation and smoke tests | Complete |
 
-The setup/Phase 1 validation logs below are historical. Phase 2 evidence is
+The setup/Phase 1–2 validation logs below are historical. Phase 3 evidence is
 recorded separately below. No phase is ongoing.
 
 ## Contributor tracking
@@ -27,8 +27,8 @@ recorded separately below. No phase is ongoing.
 | Contributor | Completed | Ongoing | Pending |
 | --- | --- | --- | --- |
 | Ishaan — Frontend | Phase 1 frontend; Phase 2 TAC-derived basic blocks/CFG and AST/CFG diagrams | No implementation tasks | Phase 7 frontend/graph demo integration |
-| Zayn — Transformations | Phase 2 scopes/dataflow/diagnostics, typed TAC and genuine lowering | No implementation tasks | Phase 3 emitter/constant propagation/folding/unrolling/correctness; Phase 7 transformation integration |
-| Pranav — Runtime/evaluation | All 243 Phase 1 tests retained; 287 Phase 2 tests and CLI integration validated | No implementation tasks | Phase 3 correctness harness support; Phases 4–6 runtime/measurements/fingerprints; Phase 7 dashboard/evaluation integration |
+| Zayn — Transformations | Phase 2 analysis/TAC; Phase 3 safe constant pass, full unrolling, C emitter, applicability reports and provenance | No implementation tasks | Phase 4 equivalence integration; Phase 7 transformation demo |
+| Pranav — Runtime/evaluation | 530 prior tests retained; 281 Phase 3 tests, ordered pipeline/CLI and expected-value validation | No implementation tasks | Phases 4–6 runtime/equivalence/measurements/fingerprints; Phase 7 dashboard/evaluation |
 
 Rows track progress by the team's agreed responsibility areas. They do not claim
 that named individuals have independently authored or reviewed these changes.
@@ -39,7 +39,7 @@ that named individuals have independently authored or reviewed these changes.
 | --- | --- | --- |
 | 1. Lexical/syntax analysis | Complete | Actual PLY tokens/AST, source diagnostics, CLI, 243 passing tests; evidence below |
 | 2. Semantic analysis/CFG/IR | Complete | Real symbols/dataflow, TAC/CFG, diagrams and 530 passing tests; evidence below |
-| 3. Transformations | Pending | Actual pass changes, skip reasons, full-return correctness tests |
+| 3. Transformations | Complete | Fresh AST passes, reports/source round trips, expected-value tests; 811 passing total |
 | 4. Compilation/execution | Pending | Clang pipeline, identical cases, mismatch/error/timeout tests |
 | 5. Measurement | Pending | Raw repeated timings, truthful counter availability, JSON/CSV provenance |
 | 6. Fingerprinting | Pending | Real response matrices/comparisons, zero/missing-value tests |
@@ -199,10 +199,90 @@ integer assumptions and validate defined inputs. CFG reachability is structural,
 not an execution-trace claim. External-renderer availability is optional for DOT
 export. Linux and other Python versions were not executed in this task.
 
-## Next development task — Phase 3 (not started)
+## Phase 3 validation log — 2026-10-16
 
-After a separate Phase 3 request, implement AST-to-C emission, genuine scoped
-constant propagation/folding, safe loop unrolling with applicability reports,
-and full-return correctness tests on defined inputs. Preserve the Phase 1–2 APIs
-and revalidate/re-lower transformed ASTs. Transformation, runtime, fingerprint
-and dashboard modules remain unimplemented.
+Implemented fresh-AST constant propagation/folding, safe full loop unrolling,
+shared arithmetic/cloning/report helpers, explicit ordered orchestration, and
+pure C source emission. Existing parse/analyze/TAC/CFG/visualization APIs and all
+530 previous tests were retained. No dependency, supported-source-language or
+Git configuration change was needed. Validation used Python 3.14.5, PLY 3.11
+and pytest 9.1.1 on macOS.
+
+| Validation | Actual result |
+| --- | --- |
+| `.venv/bin/python -m pytest` | **811 passed, 0 failed, 0 skipped** |
+| Original Phase 1–2 tests | All **530** cases remain passing |
+| `tests/test_constant_folding.py` | 86 passed: arithmetic/comparisons, signed division/remainder, bounds, unsafe preservation, scope/joins/loops, stable repeats |
+| `tests/test_loop_unrolling.py` | 70 passed: signed counts, zero trips, final updates, boundaries, scope/IDs and every rejection class |
+| `tests/test_codegen.py` | 51 passed: original cases, canonical C round trips, negative nodes/INT_MIN, dangling else and immutability |
+| `tests/test_transformations.py` | 35 passed: exact sequences, math-derived expected values, fresh baselines, composed origins, rollback and serializable committed reports |
+| `tests/test_phase3_cli.py` | 39 passed: real success/rejection examples, TAC/AST/CFG/C/report modes, limits and established exit codes |
+
+Actual constant example TAC before transformation has seven instructions. After
+`constants` it is `base = 14`, `adjusted = 10`, `return 3`. Its report is
+`applied` with 4 folds, 2 propagated reads and 6 changed AST nodes. The
+`combined.c` sequence `constants → unroll → constants` reports three applied
+passes, one loop/four iterations expanded, and final TAC `return 146`.
+`rejected_induction.c` reports `rejected` / `INDUCTION_WRITE`, preserving the
+program and recording zero committed unrolls. Declaration and 40-trip limit
+examples report `DECLARATION_IN_BODY` and `ITERATION_LIMIT` respectively.
+
+Review added explicit raw-expression regressions for unknown numerators with
+known-zero divisors (`x/(1-1)`, `x%(2-2)`): complete unsafe structure is preserved.
+Revalidation tests expose previously unknown faults after unrolling and verify
+whole-pass rollback with zeroed stats. Repeated passes and multi-pass provenance
+are deterministic; final syntax nodes never share identity with the original.
+
+Regenerable ignored artifacts under `results/phase3/` include actual
+`constants_before.tac`, `constants_after.tac`, `constants_report.json`,
+`combined_report.json`, `rejected_report.json`, `combined_transformed.c` and
+`combined_cfg.svg`/`.dot`. No emitted C was compiled or run. Test-only pure
+arithmetic/TAC oracles check independently expected full integer values; there
+is no process/runtime-equivalence infrastructure or performance data.
+
+### Phase 3 acceptance checklist
+
+- [x] Actual safe constant propagation and folding; conservative scoped transfers.
+- [x] Signed C division/remainder and overflow/undefined-operation refusal.
+- [x] Proven constant-loop expansion with positive/negative steps and exact final values.
+- [x] Explicit rejected/not-applicable reasons, limits and committed statistics.
+- [x] Fresh ASTs, unique copy IDs, immutable original/provenance and stable repeats.
+- [x] Exact ordered combinations with serializable reports and safe rollback.
+- [x] Semantic revalidation and genuine transformed TAC/CFG; pure C emission.
+- [x] Seven real C examples and successful/rejected CLI output demonstrations.
+- [x] All 530 previous tests and 281 new tests pass; documentation matches output.
+- [x] No Phase 4 compilation/execution/equivalence, benchmarking, fingerprints or dashboard.
+
+### Phase 3 decisions and limitations
+
+`common.py` centralizes safe arithmetic, cloning/provenance and transactional
+report finalization; `pipeline.py` keeps ordering explicit. `codegen.py` separates
+pure formatting from typed IR, while `compiler.ir.emit_c` retains the planned
+public API. The source grammar is unchanged; folded negative internal literal
+nodes emit through existing unary syntax, including the safe INT_MIN expression.
+
+Constant environments join only continuing paths and clear loop-written facts;
+there is no branch pruning, unsafe algebraic identity or speculative rewrite.
+Unrolling extends the original positive-only sketch, as explicitly requested,
+to safe signed steps and < <= > >= comparisons. It still requires constant
+headers, straight-line assignment/block/empty bodies, no induction writes,
+declarations, conditionals, returns or nested loops, and in-range final updates.
+Maximum iterations default to 32 with a supported 0..1024 configuration range.
+Rejected inner loops are not separately expanded. If candidate revalidation
+fails, the whole pass (including other attempted expansions) is rolled back.
+
+These checks are not universal semantic equivalence, termination or runtime
+arithmetic proofs. Linux and other Python versions were not tested. Original
+runtime-dependent faults can remain unknown; operation order is preserved for
+defined inputs. Reports contain compiler edit counts, not machine instruction
+or performance improvements. CLI rejection inspection exits 0 with explicit
+status; source errors still exit 1 and argument/file/render errors exit 2.
+
+## Next development task — Phase 4 (not started)
+
+After a separate Phase 4 request, implement Clang compilation and controlled
+execution of emitted baseline/variant sources, identical cases/environment,
+full return/output equivalence, cleanup, compiler/runtime diagnostics and
+timeouts. Preserve the Phase 1–3 interfaces and transformation sequence metadata.
+Runtime, fingerprint and dashboard packages still contain only minimal package
+files; measurements and all later phases remain pending.
