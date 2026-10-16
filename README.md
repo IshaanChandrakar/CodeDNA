@@ -13,12 +13,13 @@ Repository: [Trifecta-tech/CompilerFallSem](https://github.com/Trifecta-tech/Com
 
 ## Current status
 
-**Phases 1–3 are complete:** the PLY frontend, typed AST, semantic analysis, TAC,
+**Phases 1–4 are complete:** the PLY frontend, typed AST, semantic analysis, TAC,
 CFGs/diagrams, constant propagation/folding, conservative full loop unrolling,
-ordered pass reports and pure C source emission. The full suite passes **811
-tests** on macOS with Python 3.14.5 and PLY 3.11, including all **530 Phase 1–2
-tests**. **Phases 4–7 are pending.** There is no machine compilation/execution,
-runtime-equivalence service, benchmark, fingerprint or dashboard implementation.
+ordered pass reports, C emission, controlled Clang builds/execution and observed
+equivalence reports. **1111 tests pass**, including all **811 Phase 1–3 tests**.
+Phase 4 acceptance
+evidence and platform coverage are recorded in [PROGRESS.md](docs/PROGRESS.md).
+**Phases 5–7 are pending.** There is no benchmark, fingerprint or dashboard implementation.
 
 The research hypothesis is to be evaluated: a similar fingerprint is evidence
 for investigation, not proof of semantic equivalence. Timing noise, constant
@@ -61,8 +62,9 @@ and external tools still need an implementation-stage compatibility matrix.
 
 The Python Graphviz package does not install `dot`. DOT generation and the core
 test suite work without it; real rendering tests skip explicitly when it is
-absent. Clang and `perf` are external tools for later phases, not required by the
-current compiler pipeline. Graphviz 16.1.0 was installed locally via Homebrew,
+absent. Clang is needed for Phase 4 compilation/execution; frontend and
+transformation inspection still work without it. `perf` is reserved for Phase 5.
+Graphviz 16.1.0 was installed locally via Homebrew,
 including its system dependencies, to validate real rendered diagrams.
 
 macOS tool installation, when needed:
@@ -105,13 +107,16 @@ revalidation rollback, freshness/provenance, reports and CLI behavior. Small tes
 checks expected return values and branch/loop behavior; it is not a production
 runtime or measurement backend. Nine rendering cases require external Graphviz
 and skip explicitly without it. Missing-renderer and renderer-failure tests run
-independently of the local installation. No hardware counters or benchmarks run.
+independently of the local installation. Phase 4 adds actual Clang compilation,
+execution, protocol, equivalence and CLI tests; tool-dependent tests skip with an
+explicit reason when Clang is absent. No hardware counters or benchmarks run.
 
 ```sh
 python -m pytest tests/test_semantic.py tests/test_ir.py tests/test_cfg.py
 python -m pytest tests/test_graph_renderer.py tests/test_phase2_cli.py
 python -m pytest tests/test_constant_folding.py tests/test_loop_unrolling.py tests/test_codegen.py
 python -m pytest tests/test_transformations.py tests/test_phase3_cli.py
+python -m pytest tests/test_harness.py tests/test_compiler_runner.py tests/test_equivalence.py tests/test_phase4_cli.py
 ```
 
 ## Phase 1 usage
@@ -281,8 +286,8 @@ does not prove runtime arithmetic safety or termination.
 
 Division truncates toward zero; remainder is `a - trunc(a/b) * b`. Signed overflow,
 zero divisors, and `INT_MIN / -1` or `INT_MIN % -1` are undefined in the study's
-32-bit signed-int model. The future execution backend must verify the target and
-use defined inputs. Phase 2 does not execute user C or measure performance.
+32-bit signed-int model. The Phase 4 harness verifies this target and reports
+runtime UBSan violations. Phase 2 itself does not execute C or measure performance.
 
 ## Phase 3 usage
 
@@ -406,6 +411,91 @@ check independently expected values; no C process or runtime-equivalence pipelin
 is created. Actual local reports, emitted C and a transformed CFG can be
 regenerated under ignored `results/phase3/` using `--output`.
 
+## Phase 4 usage
+
+```sh
+python -m compiler --compile examples/runtime/constants_return257.c
+python -m compiler --run examples/runtime/constants_return257.c
+python -m compiler --equiv --transform constants examples/runtime/constants_return257.c
+python -m compiler --equiv --transform unroll examples/transformations/unroll_positive.c
+python -m compiler --equiv --transform unroll --opt O2 examples/transformations/unroll_negative.c
+python -m compiler --equiv --transform constants --transform unroll --transform constants --output results/phase4/combined.json examples/transformations/combined.c
+python -m compiler --equiv --against examples/runtime/mismatch_257.c examples/runtime/mismatch_one.c
+python -m compiler --equiv --execution-timeout 1 examples/runtime/timeout.c
+python -m compiler --equiv examples/runtime/dynamic_divzero.c
+```
+
+These commands return structured JSON. `--compile` validates and compiles in a
+temporary workspace; the binary is removed on completion. `--run` also executes
+and records the complete signed integer separately from process status.
+`--equiv` defaults to constants; repeat `--transform` for the exact pass order.
+`--against` compares two validated sources and cannot accompany passes.
+`--output` saves reports, including failed comparisons, and protects both inputs.
+
+Defaults are Clang, C11, O0, UBSan, a 10-second compilation deadline and a 2-second
+execution deadline. Configure with `--clang PATH`, `--opt O0|O2`,
+`--compile-timeout SECONDS` and `--execution-timeout SECONDS`. Deadlines must be
+finite and positive. `--no-sanitize` allows single-program observations, but
+matching pairs are inconclusive. Unsupported sanitizer environments are explicit;
+there is no silent fallback. Optional API extra flags may configure diagnostics
+only, preserving the target/optimization/sanitizer contract.
+
+Actual Apple Clang 21.0.0 results (O0 unless stated):
+
+| Example | Full original / transformed return | Outcome / CLI exit |
+| --- | --- | --- |
+| Constants | 257 / 257 | `observed_equivalent` / 0 |
+| Positive-step unrolling | 64 / 64 | `observed_equivalent` / 0 |
+| Negative-step unrolling, O2 | 89 / 89 | `observed_equivalent` / 0 |
+| Constants → unroll → constants | 146 / 146 | `observed_equivalent` / 0 |
+| Zero-trip final induction | 12 / 12 | `observed_equivalent` / 0 |
+| Negative division/remainder | -201 / -201 | `observed_equivalent` / 0 |
+| Deliberate mismatch | 1 / 257 | `different_behavior` / 5 |
+| Infinite loop | No completed result | `timeout` / 4 |
+| Dynamic zero divisor | No accepted result | `undefined_behavior` / 4 |
+| Rejected declaration-in-body unrolling | 3 / 3 | `no_transformation` / 6 |
+
+Actual selected JSON from `--run examples/runtime/constants_return257.c`:
+
+```json
+{"status": "success", "process_returncode": 0, "return_value": 257, "stdout": "", "stderr": ""}
+```
+
+The harness wraps the validated AST's canonical C with a collision-free static
+entry and a separate versioned JSON observation file. C assertions verify the
+exact signed 32-bit target. Full returns are never inferred from process exit
+codes. Reports separate deterministic results (input hashes, sources, reports,
+origins, settings, compilation outcomes and observations) from environmental
+compiler version, platform and temporary paths. No accepted change produces
+`no_transformation`; matching unchanged executions do not validate a rejected pass.
+
+Runtime exit codes: **0** compiled/executed/observed equivalent; **1** source error;
+**2** argument/file error; **3** compilation failure; **4** execution failure,
+compile/run timeout or detected UB; **5** mismatch; **6** unavailable/inconclusive
+validation or no accepted transformation. Saving a report retains that exit code.
+
+```python
+from runtime.equivalence import check_equivalence, compare_sources
+from runtime.models import CompileConfig
+
+report = check_equivalence(source, ("constants", "unroll", "constants"),
+                           config=CompileConfig(optimization="O2"))
+print(report.outcome)
+print(report.to_json())
+control = compare_sources("int main(){return 1;}", "int main(){return 257;}")
+assert control.outcome == "different_behavior"
+```
+
+Execution is for trusted local coursework fixtures. Process-group termination,
+bounded output and POSIX resource limits contain accidental runaway programs;
+there is no filesystem/network isolation or security sandbox. Supported programs
+still have no external input/I/O. UBSan and successful matching runs establish
+observed behavior under recorded conditions, not a proof of universal equivalence,
+safety or termination. Local coverage is macOS arm64; Linux remains unverified.
+
+See [the complete Phase 4 evidence, actual original/transformed C, report contract,
+file inventory and limitations](docs/PHASE4_VALIDATION.md). Phase 5 has not begun.
+
 ## Current directory structure
 
 ```text
@@ -427,7 +517,12 @@ CodeDNA/
 │   ├── constant_folding.py
 │   ├── loop_unrolling.py
 │   └── pipeline.py
-├── runtime/__init__.py
+├── runtime/
+│   ├── __init__.py
+│   ├── models.py
+│   ├── compiler_runner.py
+│   ├── harness.py
+│   └── equivalence.py
 ├── fingerprint/__init__.py
 ├── visualization/
 │   ├── __init__.py
@@ -437,6 +532,7 @@ CodeDNA/
 │   ├── loops/       # 3 valid C examples and .gitkeep
 │   ├── invalid/     # 6 intentionally invalid C examples
 │   ├── transformations/  # 7 Phase 3 success/rejection examples
+│   ├── runtime/     # 7 full-return/equivalence/failure examples
 │   └── comparison/.gitkeep
 ├── tests/
 │   ├── test_setup.py
@@ -453,10 +549,15 @@ CodeDNA/
 │   ├── test_constant_folding.py
 │   ├── test_loop_unrolling.py
 │   ├── test_transformations.py
-│   └── test_phase3_cli.py
+│   ├── test_phase3_cli.py
+│   ├── test_compiler_runner.py
+│   ├── test_harness.py
+│   ├── test_equivalence.py
+│   └── test_phase4_cli.py
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── IMPLEMENTATION_PLAN.md
+│   ├── PHASE4_VALIDATION.md
 │   ├── COMPILER_DESIGN.md
 │   └── PROGRESS.md
 ├── results/.gitkeep
@@ -466,8 +567,8 @@ CodeDNA/
 └── README.md
 ```
 
-Later runtime modules, `fingerprint/matrix.py`, `fingerprint/similarity.py`, and
-`app.py` remain absent after Phase 3. `compiler/codegen.py` keeps pure source
+`runtime/benchmark.py`, `fingerprint/matrix.py`, `fingerprint/similarity.py`, and
+`app.py` remain absent after Phase 4. `compiler/codegen.py` keeps pure source
 emission separate from IR records, and `compiler.ir.emit_c` retains the planned
 public interface. Shared transformation helpers/reports and explicit sequencing
 live under `transformations/`.
@@ -526,7 +627,7 @@ the AST, and CFG construction consumes TAC. Implemented transformations
 return fresh ASTs and reports. Runtime consumes emitted C and returns structured
 execution/measurement records. Fingerprinting consumes measurements with explicit
 units, provenance, and missing values. These are design contracts, not existing
-APIs except for the completed Phase 1–3 pipeline. Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+APIs except for the completed Phase 1–4 pipeline. Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Development rules
 
@@ -536,19 +637,16 @@ working functionality and document interface changes before integration.
 Implement actual compiler algorithms; keep unavailable stages clearly marked.
 Test each completed module and record progress in [PROGRESS.md](docs/PROGRESS.md).
 Use only trusted local C fixtures until an isolated execution environment exists;
-future subprocess timeouts alone will not sandbox uploaded code.
+subprocess timeouts alone do not sandbox uploaded code.
 
 Benchmark variants with the same compiler flags, inputs, and environment. Verify
 observable results before accepting measurements. Keep raw data and metadata;
 never invent timing values, instruction counts, or similarity scores.
 
-## Next work: Phase 4 (not started)
+## Next work: Phase 5 (not started)
 
-After a separate Phase 4 request, implement Clang compilation and controlled
-execution of baseline/transformed sources, identical cases/environment, full
-return/output equivalence, failure diagnostics and timeouts. The current task
-stops at Phase 3. No compiler runner, C execution, runtime-equivalence checks,
-benchmark, repeated measurements, fingerprint or dashboard has begun.
+The current task stops at the Phase 4 acceptance gate. Repeated measurements,
+instruction-count backends, fingerprints and the dashboard require later phases.
 
 ## References
 

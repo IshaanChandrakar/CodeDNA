@@ -5,10 +5,11 @@ from the existence of a design document or an empty package.
 
 ## Current task
 
-Repository setup (M0) and Phases 1–3 (M1–M3) are complete. The existing checkout
+Repository setup (M0) and Phases 1–4 (M1–M4) are complete. The existing checkout
 remains on `main` with the original GitHub remote. Phase 3 began from the existing
 clean Phase 2 checkout, preserved all 530 prior test cases, and did not change Git
-configuration, create a branch, commit or push. Phases 4–7 remain pending.
+configuration, create a branch, commit or push. Phase 4 passed its acceptance
+gate with **1111 passing tests**, including all **811 prior tests**. Phases 5–7 remain pending.
 
 | Setup item | Status |
 | --- | --- |
@@ -20,15 +21,15 @@ configuration, create a branch, commit or push. Phases 4–7 remain pending.
 | Validate dependency installation and smoke tests | Complete |
 
 The setup/Phase 1–2 validation logs below are historical. Phase 3 evidence is
-recorded separately below. No phase is ongoing.
+recorded separately below, followed by Phase 4 evidence. No phase is ongoing.
 
 ## Contributor tracking
 
 | Contributor | Completed | Ongoing | Pending |
 | --- | --- | --- | --- |
 | Ishaan — Frontend | Phase 1 frontend; Phase 2 TAC-derived basic blocks/CFG and AST/CFG diagrams | No implementation tasks | Phase 7 frontend/graph demo integration |
-| Zayn — Transformations | Phase 2 analysis/TAC; Phase 3 safe constant pass, full unrolling, C emitter, applicability reports and provenance | No implementation tasks | Phase 4 equivalence integration; Phase 7 transformation demo |
-| Pranav — Runtime/evaluation | 530 prior tests retained; 281 Phase 3 tests, ordered pipeline/CLI and expected-value validation | No implementation tasks | Phases 4–6 runtime/equivalence/measurements/fingerprints; Phase 7 dashboard/evaluation |
+| Zayn — Transformations | Phase 2 analysis/TAC; Phase 3 transformations/reports; Phase 4 pipeline/provenance integration | No implementation tasks | Phase 7 transformation demo |
+| Pranav — Runtime/evaluation | Phase 4 Clang runner, full-return harness, equivalence/CLI and tests; all 811 prior tests retained | No implementation tasks | Phases 5–6 measurements/fingerprints; Phase 7 dashboard/evaluation |
 
 Rows track progress by the team's agreed responsibility areas. They do not claim
 that named individuals have independently authored or reviewed these changes.
@@ -40,7 +41,7 @@ that named individuals have independently authored or reviewed these changes.
 | 1. Lexical/syntax analysis | Complete | Actual PLY tokens/AST, source diagnostics, CLI, 243 passing tests; evidence below |
 | 2. Semantic analysis/CFG/IR | Complete | Real symbols/dataflow, TAC/CFG, diagrams and 530 passing tests; evidence below |
 | 3. Transformations | Complete | Fresh AST passes, reports/source round trips, expected-value tests; 811 passing total |
-| 4. Compilation/execution | Pending | Clang pipeline, identical cases, mismatch/error/timeout tests |
+| 4. Compilation/execution | Complete | Real Clang O0/O2 pipeline, exact full returns, mismatch/UB/failure/timeout/cleanup tests; 1111 passing total |
 | 5. Measurement | Pending | Raw repeated timings, truthful counter availability, JSON/CSV provenance |
 | 6. Fingerprinting | Pending | Real response matrices/comparisons, zero/missing-value tests |
 | 7. Dashboard/evaluation | Pending | End-to-end demo, all four baselines, reproducible evaluation evidence |
@@ -278,11 +279,89 @@ defined inputs. Reports contain compiler edit counts, not machine instruction
 or performance improvements. CLI rejection inspection exits 0 with explicit
 status; source errors still exit 1 and argument/file/render errors exit 2.
 
-## Next development task — Phase 4 (not started)
+## Phase 4 validation log — 2026-10-16
 
-After a separate Phase 4 request, implement Clang compilation and controlled
-execution of emitted baseline/variant sources, identical cases/environment,
-full return/output equivalence, cleanup, compiler/runtime diagnostics and
-timeouts. Preserve the Phase 1–3 interfaces and transformation sequence metadata.
-Runtime, fingerprint and dashboard packages still contain only minimal package
-files; measurements and all later phases remain pending.
+Implemented `runtime/models.py`, `runtime/compiler_runner.py`, `runtime/harness.py`
+and `runtime/equivalence.py`; extended only the CLI and runtime package description
+in existing implementation files. Frontend/analysis/TAC/CFG/emitter and Phase 3
+pass implementations and every prior test remain unchanged. Seven new runtime
+fixtures and four test modules exercise actual processes, not just a simulated
+comparison. No dependencies, branches, Git settings, commits or pushes changed.
+
+Observed environment: macOS arm64, Python 3.14.5, pytest 9.1.1, Apple Clang
+**21.0.0 (clang-2100.3.34.2)**, target **arm64-apple-darwin25.6.0**. Actual flags
+`-std=c11 -O0 -fsanitize=undefined -fno-sanitize-recover=all` and separate `-O2`
+conditions. All integration tests ran locally with actual Clang available.
+
+| Validation | Actual result |
+| --- | --- |
+| Original test files, excluding all four Phase 4 modules | **811 passed** |
+| Harness module | **89 passed**, including 16 real O0/O2 compile/run checks |
+| Equivalence module | **92 passed** in the final gate; real O0/O2 pairs, negative controls, UB and timeouts |
+| CLI module | **56 passed**, real commands, reports, diagnostics and alias protection |
+| Runner module | **63 passed** in the final gate, including FIFO-observation protection |
+| `.venv/bin/python -m pytest -q` | **1111 passed, 0 failed, 0 skipped**, 196.27 seconds of test-suite wall time |
+| `.venv/bin/python -m pip check` | No broken requirements found |
+| `git diff --check` and local Markdown links | Clean; links resolve |
+
+The first full gate ran 1105 cases: 1104 passed and one timeout-fixture assertion
+failed because a trivial sanitized program itself exceeded that test's one-second
+deadline. The runner correctly reported timeout. Both equivalence timeout tests
+now use three seconds to include process/sanitizer startup; exact assertions were
+retained, with no retry. Both focused tests then passed. Six additional real UB
+cases cover subtraction overflow, multiplication overflow and INT_MIN remainder
+at O0/O2. The final full gate passed all **1111 cases**. This includes **300** new
+cases and the unchanged **811** prior cases; the suite duration above is test-run
+evidence, not a measured runtime/performance result for compiled programs.
+
+Real CLI evidence: constants **257/257**, positive unrolling **64/64**, negative
+unrolling at O2 **89/89**, combined **146/146**, zero-trip final induction **12/12**,
+negative division/remainder **-201/-201** all report `observed_equivalent` (exit 0).
+Full return observations have wrapper process status 0, independently of signed
+integer value; INT_MIN/MAX also run. Deliberate **1/257** reports
+`different_behavior` (exit 5). Infinite-loop fixture reports `timeout` (exit 4),
+loop-carried zero divisor `undefined_behavior` (exit 4), and rejected unrolling
+`no_transformation` with matching **3/3** (exit 6). Missing compiler is
+`unavailable` (exit 6). Invalid raw generated C yields actual Clang diagnostics,
+compiler status 1, and compilation `failure`.
+
+Private workspaces, bounded output, process-tree termination, resource controls,
+crash/missing/nonexecutable artifacts and cleanup have actual tests. A wrapper
+records a strict versioned full integer result file and asserts target width.
+Reports retain exact input hashes, emitted C, harness hashes, settings,
+applicability and origin maps; environmental paths/version/platform are separate.
+Representative complete JSON reports were inspected and regenerated under ignored
+`results/phase4/`. Matching deterministic result sections are checked across runs.
+
+Review found that unconstrained extra flags could disable UBSan. They are now
+restricted to diagnostics, excluding preprocessor/assembler/linker forwarding;
+regressions cover sanitizer/semantic/optimization overrides. Matching runs with
+UBSan disabled remain inconclusive. There is no silent sanitizer fallback and
+rejected/unchanged pipelines cannot pass as validated transformations.
+
+Execution remains for trusted local fixtures, not hostile uploads. There is no
+filesystem/network security isolation or default total address-space cap.
+Inherited host environment is consistent within a pair but not fully serialized.
+UBSan/finite executions do not prove arbitrary safety, termination or mathematical
+equivalence. Linux and other Python/compiler versions remain unverified.
+Full file inventory, original/transformed C, commands and selected real output
+are in [PHASE4_VALIDATION.md](PHASE4_VALIDATION.md).
+
+### Phase 4 acceptance checklist
+
+- [x] Discover actual Clang, record version/settings and preserve compiler diagnostics.
+- [x] Independently compile original/transformed validated C using C11, O0 and O2.
+- [x] Capture full signed 32-bit returns separately from wrapper status, including boundaries.
+- [x] Exercise real constant/loop/combined comparisons, branches and final induction values.
+- [x] Detect deliberate 1/257 and other mismatches, dynamic arithmetic UB and timeouts.
+- [x] Retain rejected/inapplicable pass reports without claiming optimization validation.
+- [x] Bound output, terminate process groups and clean private build/run artifacts.
+- [x] Inspect deterministic structured reports, CLI diagnostics and saved failure statuses.
+- [x] Run all 1111 tests without skips, preserving all 811 prior tests.
+- [x] Update requested documentation and stop before Phase 5; no commit, push, branch or Git configuration changes.
+
+## Next development task — Phase 5 (not started)
+
+The task stops at the Phase 4 gate. No repeated measurements, runtime metrics,
+instruction counts, performance CSV, response matrix, fingerprints or dashboard
+have been introduced.

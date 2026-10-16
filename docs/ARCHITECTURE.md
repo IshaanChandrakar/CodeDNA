@@ -1,8 +1,9 @@
 # Architecture
 
-Status: Phases 1–3 implemented; Phases 4–7 remain design contracts. Updated
+Status: Phases 1–4 implemented; Phases 5–7 remain design contracts. Updated
 2026-10-16. Frontend, analysis, TAC/CFG, diagrams, transformations, reports and
-pure C emission are operational; user C is not compiled or executed.
+pure C emission, Clang compilation, full-return execution and observed equivalence
+are operational. No performance-measurement stage has begun.
 
 ## Research pipeline
 
@@ -41,7 +42,7 @@ not a substitute for implementing it.
 
 ## Boundaries and ownership
 
-The Phase 1–3 signatures below are implemented; Phase 4 onward are **planned
+The Phase 1–4 signatures below are implemented; Phase 5 onward are **planned
 APIs**, not callable functions today. `compiler/diagnostics.py` shares frontend
 source mapping and exceptions, and `compiler/__main__.py` supplies the requested
 `python -m compiler` CLI, now extended with semantic/TAC/CFG/graph inspection.
@@ -51,7 +52,7 @@ module split avoids mixing the symbol environment with instruction construction.
 Use Python dataclasses and type annotations, explicit result records, and
 schema-versioned JSON. Do not pass PLY-specific objects between stages.
 
-| File / phase | Owner | Interface and responsibility (Phases 1–3 implemented) |
+| File / phase | Owner | Interface and responsibility (Phases 1–4 implemented) |
 | --- | --- | --- |
 | `compiler/lexer.py` / 1 | Ishaan | `tokenize(source: str) -> list[TokenRecord]`; fresh PLY lexer per source; token value and source span |
 | `compiler/parser.py` / 1 | Ishaan | `parse(source: str) -> Program`; PLY grammar, precedence, AST construction; fail with structured diagnostics |
@@ -65,7 +66,10 @@ schema-versioned JSON. Do not pass PLY-specific objects between stages.
 | `transformations/common.py` / 3 | Zayn | Fresh AST cloning/provenance, safe integer arithmetic, immutable statistics/decisions/reports and transactional revalidation |
 | `transformations/pipeline.py` / 3 | Zayn / Pranav | `apply_transformations(program, sequence=("constants", "unroll"), max_iterations=32) -> PipelineResult`; exact ordered passes, composed provenance and report JSON |
 | `compiler/codegen.py` / 3 | Zayn | `emit_c(program: Program) -> str`, re-exported through `compiler.ir`; fully parenthesized subset C, no execution |
-| `runtime/compiler_runner.py` / 4 | Pranav | `compile_source(source, config) -> CompilationResult`, `execute(artifact, case, config) -> ExecutionResult`; no shell interpolation |
+| `runtime/models.py` / 4 | Pranav | Immutable `CompileConfig`, `ExecutionCase`, compiler/artifact/compilation/execution records |
+| `runtime/compiler_runner.py` / 4 | Pranav | Context-managed `CompilerRunner(config)` with `compile_source(source, label=..., observation_file=...)` and `execute(artifact, case=None)`; module delegates require `workspace=runner` |
+| `runtime/harness.py` / 4 | Pranav | `make_harness(program) -> HarnessSource`; strict `parse_observation(text) -> int`; full signed return and target assertions |
+| `runtime/equivalence.py` / 4 | Pranav / Zayn | `check_equivalence(source, sequence, config=...)`, `compare_sources(left, right, config=...)`, `evaluate_source(source, execute=...)`; reports/observations/provenance |
 | `runtime/benchmark.py` / 5 | Pranav | `benchmark(variants, cases, config) -> BenchmarkReport`; raw samples, aggregation, validation, and provenance |
 | `fingerprint/matrix.py` / 6 | Pranav | `build_matrix(report) -> ResponseMatrix`; schema alignment, normalization, and missing masks |
 | `fingerprint/similarity.py` / 6 | Pranav | `compare(left, right, config) -> SimilarityResult`; overlap coverage and defined metrics |
@@ -186,29 +190,59 @@ respect the unchanged frontend literal bound. Emitted sources are round-tripped
 through parse/analyze/TAC/CFG in tests. Phase 3 tests check independently expected
 values with pure arithmetic/TAC oracles, not Clang or process equivalence.
 
-### Runtime and measurements
+### Runtime (implemented in Phase 4)
 
-`CompileConfig`: compiler path/version, C standard, flags, target and timeout.
-Initially use controlled `-std=c11 -O0` experiments to reduce optimizer masking;
-`-O2` is a separately labeled evaluation condition, never mixed into one matrix.
-Even at `-O0`, trivial programs may yield weak or indistinguishable responses.
+`CompileConfig` fixes C11 and the signed 32-bit target; it configures the Clang
+path/name, O0 or O2, compilation/execution deadlines, sanitizer mode, bounded
+output and optional address-space limit. UBSan is enabled by default. Extra flags
+are diagnostic-only so they cannot override semantics, target or sanitization.
+Clang's path/version is discovered once into `CompilerInfo`. A runner context
+owns private independent builds and fresh run directories, cleaning every artifact
+on exit. Top-level compile/execute delegates require that explicit context.
 
-`CompilationResult`: success/failure/timeout, exact command, diagnostics, artifact
-path, source hash and compiler metadata. `ExecutionCase`: stable ID, stdin bytes,
-argument list, environment, fixture/parameter provenance. V1 cases use empty
-stdin/arguments and controlled literal source fixtures because user programs
-have no input operations. Every variant receives the same case and environment.
+`CompilationResult` retains status, exact command, stdout/stderr, process code,
+details, source SHA-256 and an ephemeral typed `CompiledArtifact` when successful.
+`ExecutionCase` contains stdin bytes, arguments and environment overrides. The
+high-level V1 service uses empty stdin/arguments because the existing subset has
+no input operations. Both variants receive the same environment snapshot and
+enforced locale/TZ/UBSan settings. `ExecutionResult` separates `return_value`
+(full signed integer) from `process_returncode` and signal/status, and retains
+stdout/stderr/details. There are **no elapsed-program-time or metric fields**.
 
-`ExecutionResult`: stdout/stderr, process status, termination reason, elapsed
-nanoseconds, and full integer return observation when the validation harness is
-enabled. POSIX process exit status alone loses return-value information; Phase 4
-must observe full returns using a controlled C wrapper or equivalent backend.
-Phase 3 supplies test-only expected integer checks without a process harness.
-A future generated wrapper may rename `main` and print its returned `int`;
-wrapper code is internal C, outside the accepted user syntax. Apply the same
-wrapper to all variants and record it in experiment metadata. Full-return
-validation precedes measurement, and successful runs do not prove equivalence
-for all possible programs or inputs.
+The harness receives an AST, validates/emits/round-trips canonical subset C and
+renames only the emitter's verified opening header to a collision-free static
+entry. Standard headers follow the computation to protect accepted identifiers
+from header macros. The wrapper calls the computation once and writes a strict
+versioned JSON result file separately from stdout/stderr. Its own status is 0 on
+success; the returned integer is never inferred from OS exit status. C static
+assertions require 8-bit bytes, four-byte int and exact signed 32-bit bounds.
+Internal wrapper C does not extend the source grammar.
+
+The checker reuses parse/analyze, the ordered Phase 3 pipeline, revalidation and
+the existing emitter. A known-valid capability program verifies target/sanitizer
+compilation/startup. Baseline and candidate compile and run independently with
+identical flags. Compare complete integer values, stdout, stderr and normal
+status. Outcomes distinguish observed equivalence, differences, compilation or
+execution failures, timeout, undefined behavior, unavailability/inconclusiveness
+and no accepted transformation. UBSan-disabled matching pairs are inconclusive;
+rejected/unchanged pipelines are never accepted as transformation evidence.
+
+Schema-1 reports separate deterministic `result` from `environment_metadata`.
+Result stores input hashes, canonical sources, harness hashes, settings, ordered
+pass applicability, composed origins, compilation diagnostics and observations.
+Temporary paths in diagnostics normalize to `<workspace>`; raw commands/paths,
+compiler version and platform/Python details remain environmental. Artifact paths
+are historical provenance after context cleanup. A successful comparison is
+observed equivalence under these conditions, not a universal mathematical proof.
+
+Timeout/output overflow kills subprocess groups; bounded file-backed captures and
+available POSIX CPU/core/file-size/optional address-space limits contain accidental
+runaway fixtures. This is not a filesystem/network security sandbox. Only trusted
+local sources are appropriate. Actual execution coverage is macOS arm64, Apple
+Clang 21.0.0, O0/O2; Linux remains unverified. See
+[actual Phase 4 evidence](PHASE4_VALIDATION.md).
+
+### Measurements (Phase 5 onward; pending)
 
 `BenchmarkReport` stores original/variant IDs, applied-pass reports, case IDs,
 raw samples, warmups/repetition count, ordered/interleaved run schedule, medians,
@@ -251,9 +285,9 @@ calibrated against held-out examples, not presented as probabilities or proofs.
 Phases 1–3 preserve frontend/analysis interfaces and supply fresh transformed ASTs,
 source emission, provenance and explicit sequence reports. Emitted baseline and
 variant source plus case identity are the Phase 4 boundary. Phase 3 validation
-uses pure expected-value/round-trip tests and no Clang/process harness, following
-the current request's strict boundary. Compilation, execution, subprocess control,
-full-return runtime equivalence and timeouts all begin in Phase 4.
+used pure expected-value/round-trip tests before the Phase 4 boundary. Phase 4
+adds independent Clang execution and full observations without modifying those
+interfaces or beginning Phase 5 measurements.
 
 Every phase adds unit tests and any justified integration tests, updates progress,
 and passes its acceptance gate before the next phase starts. Interface changes
@@ -262,5 +296,5 @@ uses standard [Python packaging metadata](https://packaging.python.org/en/latest
 and [pytest configuration](https://docs.pytest.org/en/stable/reference/customize.html).
 
 No network services, database or process sandbox is required for the local lab
-setup. Future execution accepts trusted local fixtures; exposing compilation of
+setup. Current execution accepts trusted local fixtures; exposing compilation of
 arbitrary uploads requires a separate isolation decision before deployment.

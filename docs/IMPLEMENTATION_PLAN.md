@@ -1,6 +1,6 @@
 # Implementation plan
 
-Updated 2026-10-16. Setup and Phases 1–3 are complete. Phases 4–7 below are pending;
+Updated 2026-10-16. Setup and Phases 1–4 are complete. Phases 5–7 below are pending;
 phase numbers are acceptance gates, not calendar dates.
 Implement one phase at a time and preserve earlier working behavior.
 
@@ -14,8 +14,8 @@ Setup (M0) → Phase 1 (M1) → Phase 2 (M2) → Phase 3 (M3)
 The line wraps for readability; the dependency chain is strictly sequential.
 Within Phase 2, shared AST semantic validation and IR lowering precede CFG
 partitioning. Phase 3 validates pure source/AST/TAC structure and independently
-expected values; the current request reserves all Clang/process-equivalence
-infrastructure for Phase 4.
+expected values; Clang/process-equivalence infrastructure is implemented in
+Phase 4 without beginning Phase 5 measurements.
 
 | Milestone | Observable outcome | Gate reviewers |
 | --- | --- | --- |
@@ -138,7 +138,8 @@ limit, induction writes and loop returns; no benchmark data claimed yet.
 
 **Deliverable:** emitted original/transformed subset C, fresh transformed ASTs,
 genuine TAC/CFGs, deterministic reports and tested safety within the declared
-preconditions. Machine compilation, execution and runtime equivalence are pending.
+preconditions. Machine compilation, execution and runtime equivalence are supplied
+by the separate Phase 4 gate below.
 
 **Acceptance evidence (2026-10-16):** **811 passed, 0 failed, 0 skipped**, including
 all 530 Phase 1–2 cases. The 281 new cases cover constant/folding safety (86),
@@ -157,7 +158,7 @@ The emitter resides in `compiler/codegen.py`, with the planned `compiler.ir.emit
 re-export; no language/API expansion is needed. Source/TAC/report/graph artifacts
 are regenerable under ignored `results/phase3/`. No dependencies changed.
 
-## Phase 4 — Compilation and execution
+## Phase 4 — Compilation and execution (complete)
 
 **Dependency:** M3. **Owner:** Pranav; Zayn supplies emitted variants and validation
 contracts.
@@ -181,6 +182,27 @@ arguments; full-return differences such as 0 versus 256 are detected.
 
 **Deliverable:** automated compilation/execution and tested equivalence gate.
 Dynamic comparison validates cases, not universal semantic equivalence.
+
+**Implemented (2026-10-16):** context-owned Clang discovery/builds/runs, immutable
+runtime records, AST-based full-return harness, target assertions, bounded output,
+process-group deadlines and POSIX resource limits. A known-valid capability check
+tests target/sanitizer availability. Real source comparisons preserve the Phase 3
+pipeline's applicability and composed provenance; rejected/unchanged passes have
+an explicit `no_transformation` outcome. JSON separates deterministic results
+from environmental version/platform/command/path metadata. CLI compile/run/equiv,
+second-source controls, O0/O2, deadlines, sanitization and saved reports are added.
+UBSan-disabled matches are inconclusive; no failure can pass equivalence.
+
+Real module validation has exercised Apple Clang 21.0.0 on macOS arm64 at O0/O2,
+including exact signed boundaries, negative division/remainder, branch/loop
+behavior, positive/negative/zero-trip unrolling, final induction values, combined
+passes, 1-versus-257 mismatch controls, UB, crashes, timeouts, unavailable tools,
+compiler errors and cleanup. All 811 original tests passed separately. The final
+complete suite passed **1111 tests, 0 failed, 0 skipped**, including all **811**
+prior tests and **300** new cases (63 runner, 89 harness, 92 equivalence, 56 CLI).
+Evidence is recorded in [PROGRESS.md](PROGRESS.md). Linux is not yet
+validated; execution remains for trusted local fixtures rather than a security
+sandbox. See [actual programs/reports/commands](PHASE4_VALIDATION.md).
 
 ## Phase 5 — Runtime measurement
 
@@ -264,10 +286,9 @@ enabled without an explicit execution-isolation decision.
 
 **Deliverable:** demonstration-ready CodeDNA and an honest lab evaluation.
 
-## Exactly what begins next (Phase 4; not started)
+## Exactly what begins next (Phase 5; not started)
 
-M3 is accepted. A subsequent Phase 4 request should implement Clang compilation
-and controlled execution of emitted baseline/variants, identical execution cases
-and environment, full-return/output equivalence, compile/runtime errors, cleanup
-and timeouts. Preserve transformation reports and public frontend/analysis APIs.
-The present task stops at M3; no Phase 4 runtime modules or machine checks exist.
+The present task stops at the M4 acceptance gate. A subsequent Phase 5 request
+may add repeated measurement and verified counter availability. No benchmark,
+program timing metrics, instruction counts, performance datasets, response matrix,
+fingerprint or dashboard implementation is included in Phase 4.

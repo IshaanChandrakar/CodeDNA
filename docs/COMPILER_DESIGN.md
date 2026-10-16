@@ -1,7 +1,8 @@
 # Compiler design
 
-Status: Phases 1–3 grammar, AST, analysis, TAC/CFG, diagrams, transformations and
-pure C emission implemented. Machine execution remains pending. Updated 2026-10-16.
+Status: Phases 1–4 grammar, AST, analysis, TAC/CFG, diagrams, transformations,
+C emission, Clang execution and observed equivalence implemented. Phase 5 remains
+pending. Updated 2026-10-16.
 This document is the shared frontend/representation contract.
 
 ## Language boundary
@@ -113,8 +114,8 @@ and position. CLI file/encoding errors are separate from source diagnostics.
 
 ## Implemented semantic analysis
 
-Use C signed `int` semantics for a target with 32-bit `int`; the future runtime
-must check and record that target assumption. Arithmetic results outside that range are undefined
+Use C signed `int` semantics for a target with 32-bit `int`; the Phase 4 harness
+checks and records that assumption with static assertions. Results outside that range are undefined
 for this study and must not be folded into Python's unbounded integer values.
 Literal magnitudes initially fit `0..2147483647`; spelling `-2147483648` is outside
 the initial literal subset and can be extended deliberately later.
@@ -424,6 +425,55 @@ Negative folded literals use unary-minus spelling; INT_MIN is emitted as
 Tests use parse/analyze/TAC/CFG round trips and independently derived full integer
 expectations via test-only arithmetic/TAC oracles. They cover safety refusals,
 scope/freshness, deterministic reports, stable repeats, signed boundaries and
-ordering. The current request forbids Clang/process/runtime-equivalence code in
-Phase 3; those checks belong to Phase 4. Emission is source generation, not
+ordering. Phase 3 did not include Clang/process/runtime-equivalence code;
+Phase 4 adds those checks below. Emission itself is source generation, not
 compilation or execution, and these tests are not a universal equivalence proof.
+
+## Phase 4 — machine validation boundary
+
+`runtime.harness.make_harness(Program)` starts from the existing canonical emitter
+and unchanged semantic validator. A round trip confirms the emitted subset.
+Only the verified initial `int main(void) {` header is replaced with a structurally
+allocated collision-free static entry. No regex or source-string rewriting of
+arbitrary C is used. Headers follow the computation so user locals named `EOF`,
+`INT_MIN`, `stdin`, etc. keep their meaning. The internal wrapper calls the entry
+once, writes a version-1 JSON file containing the complete returned `int`, and
+exits 0. Stdout, stderr, full return and wrapper process status remain separate.
+Strict observation parsing rejects ambiguous or incomplete records; no exit-code
+fallback exists. The wrapper grammar is infrastructure, not supported user syntax.
+
+C static assertions enforce `CHAR_BIT=8`, `sizeof(int)=4`, `INT_MIN=-2147483648`
+and `INT_MAX=2147483647`. Original and transformed C are independently compiled
+using identical `-std=c11 -O0` or separately selected `-O2`. Default UBSan flags
+are `-fsanitize=undefined -fno-sanitize-recover=all`; controlled runtime options
+halt on detection. Diagnostic-only extra flags cannot replace this contract.
+A known-valid capability program checks the target/sanitizer environment first.
+Missing support is explicit, with no silent fallback. A matching unsanitized pair
+is inconclusive. Static faults remain the existing source diagnostics; dynamic
+arithmetic faults observed by UBSan invalidate comparison even when both fail.
+
+Integer addition/subtraction/multiplication must stay in the signed range.
+Division truncates toward zero and remainder follows the dividend's sign via
+`a - trunc(a/b)*b`. Zero divisors and both `INT_MIN / -1` and `INT_MIN % -1`
+remain undefined. Real tests cover boundary values, negative operands, dynamic
+overflow/zero divisors, conditional execution, positive/negative/zero-trip loops
+and the final induction update. No wraparound is assumed and Python arithmetic
+is never used as the production machine result.
+
+`check_equivalence` reuses the Phase 3 ordered pipeline and preserves input and
+composed origins/applicability. It compares full returns, stdout/stderr and normal
+process status after independent builds/runs. `compare_sources` supplies actual
+negative controls, including 1 versus 257. A rejected/inapplicable pipeline yields
+`no_transformation`, not evidence for an unchanged optimization. Compilation
+failure, execution failure, timeout, UB, unavailability and inconclusiveness are
+distinct from different behavior. Passing comparison is observed equivalence for
+the evaluated closed source fixtures/conditions, never formal equivalence.
+
+Context-owned temporary builds/runs, argument-list subprocesses, controlled
+environment, process-group termination, bounded captures and available POSIX
+resource limits contain accidental runaway work. They are not a security sandbox.
+Versioned reports include source/harness hashes and canonical C, keep deterministic
+results separate from environmental paths/compiler/platform metadata, and contain
+no timings or performance fields. macOS arm64/Apple Clang 21.0.0 has actual O0/O2
+coverage; Linux is not yet verified. Details, real emitted programs and commands
+are in [PHASE4_VALIDATION.md](PHASE4_VALIDATION.md). Phase 5 has not begun.
