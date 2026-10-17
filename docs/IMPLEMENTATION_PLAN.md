@@ -1,7 +1,7 @@
 # Implementation plan
 
-Updated 2026-10-16. Setup and Phases 1–4 are complete. Phases 5–7 below are pending;
-phase numbers are acceptance gates, not calendar dates.
+Updated 2026-10-17. Setup and Phases 1–5 are complete; Phases 6–7 remain pending.
+Phase numbers are acceptance gates, not calendar dates.
 Implement one phase at a time and preserve earlier working behavior.
 
 ## Dependencies and milestones
@@ -15,7 +15,8 @@ The line wraps for readability; the dependency chain is strictly sequential.
 Within Phase 2, shared AST semantic validation and IR lowering precede CFG
 partitioning. Phase 3 validates pure source/AST/TAC structure and independently
 expected values; Clang/process-equivalence infrastructure is implemented in
-Phase 4 without beginning Phase 5 measurements.
+Phase 4. Phase 5 reuses those validated binaries and the existing execution path
+for repeated measurements, without beginning fingerprint or dashboard work.
 
 | Milestone | Observable outcome | Gate reviewers |
 | --- | --- | --- |
@@ -204,30 +205,55 @@ Evidence is recorded in [PROGRESS.md](PROGRESS.md). Linux is not yet
 validated; execution remains for trusted local fixtures rather than a security
 sandbox. See [actual programs/reports/commands](PHASE4_VALIDATION.md).
 
-## Phase 5 — Runtime measurement
+## Phase 5 — Runtime measurement (complete)
 
 **Dependency:** M4. **Owner:** Pranav.
 
-1. Implement `runtime/benchmark.py` with warmups, configurable repetitions,
-   interleaved variant order, monotonic wall timing, raw samples and aggregation.
-2. Probe Linux `perf` counter support and permissions. Record event name/modifiers,
-   process scope, scaling/multiplexing details and backend diagnostics.
-3. Use explicit missing values and reasons when counters are unsupported,
-   inaccessible or invalid. Report genuine static TAC counts separately.
-4. Save schema-versioned JSON and long-form CSV with commands, flags, source
-   hashes, case IDs, platform/dependency versions, run order and metric provenance.
-5. Test aggregation, units, serialization, backend unavailability and failed-run
-   exclusion. Collect real samples on a documented local workload; do not assert
-   fragile wall-time thresholds as unit-test correctness.
+1. Keep the Phase 4 runner and validated sanitized artifacts alive through the
+   benchmark. Gate all sampling on full observed equivalence and accepted pass
+   applicability (or a validated independent-source comparison).
+2. Add configurable untimed warm-ups (default 5) and measurements (default 30)
+   per variant with deterministic AB/BA pairs. Time the existing subprocess path
+   using `perf_counter_ns`; exclude compilation/setup/parsing and disclose all
+   included process/startup/harness/capture overhead.
+3. Retain every attempted observation and duration. Stop on failed behavior,
+   timeout, UB, bad clock data or interruption, and invalidate both comparative
+   groups rather than reporting a successful prefix.
+4. Calculate finite descriptive summaries, sample standard deviation, inclusive
+   quartiles/IQR and coefficient of variation. Check ratio denominators and expose
+   startup/noise/sample-count cautions without significance or algorithmic claims.
+5. Export strict schema-versioned JSON plus separate stable raw/summary CSV with
+   compiler/source/artifact provenance, units, actual order, status and limitations.
+   Preflight every path and use per-file atomic replacement.
+6. Keep hardware instructions unavailable with a missing reason and no substitute
+   TAC count. The current request does not require Linux `perf` or authorize an
+   unreliable hardware backend; that earlier plan sketch is deferred.
+7. Test counts/order, clock boundaries, aggregation, missing values, failure
+   exclusion, storage and CLI behavior. Run genuine Clang O0/O2 integrations and
+   record a serial baseline; do not assert fragile durations or a particular speedup.
 
 **Acceptance:** repeatable protocol with recoverable raw observations; medians
 and dispersion recompute from raw data; unavailable counts survive round trips;
-startup overhead is disclosed; validation failures do not become measurements;
-at least one real timing experiment; perf integration checked where available
-and marked untested/unavailable elsewhere, rather than assumed portable.
+startup overhead is disclosed; failed/invalid comparisons do not acquire usable
+aggregates; actual O0/O2 baseline samples and all 1111 prior tests are verified;
+hardware counts remain explicitly unavailable without a `perf` requirement.
 
 **Deliverable:** reproducible measurement system, with clearly labeled
 platform-dependent metrics and no fabricated performance claims.
+
+**Accepted (2026-10-17):** separated `benchmark_models.py`,
+`benchmark.py`, `benchmark_statistics.py` and `benchmark_storage.py`; a timed
+wrapper over the existing runner; and `prepared_equivalence` for exact-artifact
+reuse. Existing Phase 4 result fields and ordinary call lifetimes remain intact.
+The CLI supplies configuration, concise interpretation and safe JSON/CSV export.
+New timing/statistics/storage/benchmark/CLI tests and the example command catalog
+are present. Actual serial O0/O2 baseline data and independent raw-data checks are
+recorded in [PHASE5_VALIDATION.md](PHASE5_VALIDATION.md). The complete serial gate
+passed **1384 tests, 0 failed, 0 skipped**, including all **1111** prior cases and
+**273** new cases. Dependency, whitespace, link and JSON/CSV checks passed. Six
+O0/O2 conditions retained 360 measured samples and 60 untimed warm-ups; all ratios
+were flagged unreliable, with no algorithmic speedup claim. Linux remains
+unverified. Phases 6–7 have not begun.
 
 ## Phase 6 — Transformation-response fingerprinting
 
@@ -286,9 +312,9 @@ enabled without an explicit execution-isolation decision.
 
 **Deliverable:** demonstration-ready CodeDNA and an honest lab evaluation.
 
-## Exactly what begins next (Phase 5; not started)
+## Next phase — Phase 6 (not started)
 
-The present task stops at the M4 acceptance gate. A subsequent Phase 5 request
-may add repeated measurement and verified counter availability. No benchmark,
-program timing metrics, instruction counts, performance datasets, response matrix,
-fingerprint or dashboard implementation is included in Phase 4.
+M5 is accepted; actual serial O0/O2 baselines, noise/availability limits, schemas
+and complete regression evidence are recorded. The current task stops here.
+Response matrices, DNA vectors, similarity scores
+and dashboards require later requests and have not been implemented.

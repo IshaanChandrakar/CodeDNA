@@ -13,13 +13,17 @@ Repository: [Trifecta-tech/CompilerFallSem](https://github.com/Trifecta-tech/Com
 
 ## Current status
 
-**Phases 1–4 are complete:** the PLY frontend, typed AST, semantic analysis, TAC,
+**Phases 1–5 are complete:** the PLY frontend, typed AST, semantic analysis, TAC,
 CFGs/diagrams, constant propagation/folding, conservative full loop unrolling,
 ordered pass reports, C emission, controlled Clang builds/execution and observed
-equivalence reports. **1111 tests pass**, including all **811 Phase 1–3 tests**.
-Phase 4 acceptance
-evidence and platform coverage are recorded in [PROGRESS.md](docs/PROGRESS.md).
-**Phases 5–7 are pending.** There is no benchmark, fingerprint or dashboard implementation.
+equivalence reports. The accepted Phase 4 gate passed **1111 tests**, including
+all **811 Phase 1–3 tests**. Phase 5 now implements equivalence-gated repeated
+process measurements, descriptive statistics and JSON/CSV export. The Phase 5
+gate passed **1384 tests, 0 failed, 0 skipped**, retaining all **1111** prior cases
+and adding **273** cases. Six genuine O0/O2 baseline conditions preserve 360 timed
+samples and 60 untimed warm-ups; none establishes an algorithmic speedup. Evidence is in
+[PROGRESS.md](docs/PROGRESS.md) and [PHASE5_VALIDATION.md](docs/PHASE5_VALIDATION.md).
+**Phases 6–7 have not begun.** Fingerprints and the dashboard remain absent.
 
 The research hypothesis is to be evaluated: a similar fingerprint is evidence
 for investigation, not proof of semantic equivalence. Timing noise, constant
@@ -55,15 +59,16 @@ and external tools still need an implementation-stage compatibility matrix.
 | PLY | Genuine lexer and LALR parser | Phase 1 |
 | Python `graphviz` | Declared visualization binding; DOT export itself uses pure Python | Phase 2 |
 | Graphviz `dot` executable | Optional rendering of DOT to SVG/PNG/PDF | Phase 2 |
-| Clang/LLVM | Compile C and inspect LLVM IR | Phases 4–5 |
+| Clang/LLVM | Compile and execute emitted C | Phases 4–5 |
 | pytest | Setup and module tests | Now and every phase |
 | Streamlit | Demonstration dashboard | Phase 7 |
-| Linux `perf` | Executed hardware instruction counts | Phase 5, if permitted |
+| Linux `perf` | Possible future hardware-counter backend | Not required or implemented in Phase 5 |
 
 The Python Graphviz package does not install `dot`. DOT generation and the core
 test suite work without it; real rendering tests skip explicitly when it is
 absent. Clang is needed for Phase 4 compilation/execution; frontend and
-transformation inspection still work without it. `perf` is reserved for Phase 5.
+transformation inspection still work without it. Phase 5 does not require `perf`
+or implement hardware counters; those metrics remain explicitly unavailable.
 Graphviz 16.1.0 was installed locally via Homebrew,
 including its system dependencies, to validate real rendered diagrams.
 
@@ -81,11 +86,11 @@ sudo apt-get update
 sudo apt-get install clang graphviz
 ```
 
-Linux `perf` packaging varies with distribution and kernel. Install the matching
-distribution package and check hardware counter access during Phase 5. macOS
-has no Linux `perf`; its hardware-instruction field will be missing unless a
-separately validated backend is added. Static IR instruction counts are a
-separate metric and must never be labeled executed hardware instructions.
+Linux `perf` packaging and permissions vary with the distribution and kernel.
+No counter installation is needed for this benchmark pipeline. Hardware
+instructions have JSON `null`/CSV blank values and an explicit unavailable
+status/reason. Static TAC counts are a separate structural quantity and are
+never substituted for executed hardware instructions or elapsed time.
 
 Check tools without running a benchmark:
 
@@ -104,12 +109,16 @@ python -m pytest --collect-only -q
 The suite includes all 530 Phase 1–2 tests and 281 Phase 3 tests for safe arithmetic,
 constant environments, unroll proofs/limits, source emission, pass sequencing,
 revalidation rollback, freshness/provenance, reports and CLI behavior. Small test-only TAC evaluators
-checks expected return values and branch/loop behavior; it is not a production
+check expected return values and branch/loop behavior; they are not a production
 runtime or measurement backend. Nine rendering cases require external Graphviz
 and skip explicitly without it. Missing-renderer and renderer-failure tests run
 independently of the local installation. Phase 4 adds actual Clang compilation,
 execution, protocol, equivalence and CLI tests; tool-dependent tests skip with an
-explicit reason when Clang is absent. No hardware counters or benchmarks run.
+explicit reason when Clang is absent. Phase 5 adds clock-boundary, repeated-run,
+statistics, export and benchmark-CLI tests. Real Clang tests and baseline
+benchmarks should run serially to avoid adding avoidable background load. Pure
+statistics fixtures check mathematical results without asserting a particular
+program duration or speedup. Hardware counters are not used.
 
 ```sh
 python -m pytest tests/test_semantic.py tests/test_ir.py tests/test_cfg.py
@@ -117,6 +126,8 @@ python -m pytest tests/test_graph_renderer.py tests/test_phase2_cli.py
 python -m pytest tests/test_constant_folding.py tests/test_loop_unrolling.py tests/test_codegen.py
 python -m pytest tests/test_transformations.py tests/test_phase3_cli.py
 python -m pytest tests/test_harness.py tests/test_compiler_runner.py tests/test_equivalence.py tests/test_phase4_cli.py
+python -m pytest tests/test_benchmark_statistics.py tests/test_benchmark_storage.py
+python -m pytest tests/test_timed_runner.py tests/test_benchmark.py tests/test_phase5_cli.py
 ```
 
 ## Phase 1 usage
@@ -494,7 +505,103 @@ observed behavior under recorded conditions, not a proof of universal equivalenc
 safety or termination. Local coverage is macOS arm64; Linux remains unverified.
 
 See [the complete Phase 4 evidence, actual original/transformed C, report contract,
-file inventory and limitations](docs/PHASE4_VALIDATION.md). Phase 5 has not begun.
+file inventory and limitations](docs/PHASE4_VALIDATION.md). That report records
+the historical Phase 4 gate; current measurement work is described below.
+
+## Phase 5 usage
+
+```sh
+python -m compiler --benchmark --transform constants --opt O0 --execution-timeout 10 --csv --output results/phase5/constants-O0.json examples/runtime/constants_return257.c
+python -m compiler --benchmark --transform unroll --opt O2 --execution-timeout 10 --csv --output results/phase5/unroll-O2.json examples/transformations/unroll_positive.c
+python -m compiler --benchmark --transform constants --transform unroll --transform constants --execution-timeout 10 --warmups 1 --repetitions 5 --csv --output results/phase5/combined.json examples/transformations/combined.c
+python -m compiler --benchmark --against examples/runtime/mismatch_257.c --warmups 0 --repetitions 2 --output results/phase5/mismatch.json examples/runtime/mismatch_one.c
+```
+
+These commands reproduce the documented protocol. [The example catalog](examples/benchmarks/README.md) includes
+negative returns, rejected/inapplicable passes, timeouts, UB and unavailable
+validation. Actual serial O0/O2 samples and the passing complete test gate are
+recorded in [the Phase 5 report](docs/PHASE5_VALIDATION.md).
+Its six baseline groups used five warm-ups and thirty measurements per
+variant with an explicit ten-second execution deadline; the ordinary API/CLI
+default remains two seconds. Each export records its actual configuration.
+
+Actual constants-O0 output excerpt, from a completed 257/257 comparison:
+
+```text
+original: 30/30 successful measured executions; median 10.350 ms, mean 10.348 ms.
+transformed: 30/30 successful measured executions; median 10.329 ms, mean 10.768 ms.
+Observed process median ratio (original/transformed): 1.0020; duration change: -0.20%.
+Interpretation: unreliable; process_startup_scope, high_variability, iqr_overlap, dispersion_exceeds_difference
+```
+
+All six main conditions completed, retaining 360 measured samples and 60 untimed
+warm-ups. Every comparison was `unreliable`; no algorithmic speedup or statistical
+significance is established. The report includes full raw/summary exports,
+compiler flags and genuine negative controls.
+
+`--benchmark` defaults to constants, **5 untimed warm-ups and 30 measured
+executions per variant**. `--warmups` accepts 0..10000 and `--repetitions` accepts
+1..10000. Repeat `--transform` for an exact sequence, or use `--against` for an
+independent validated source comparison without passes. C11, O0/O2, compiler
+selection, sanitization and deadlines use the existing Phase 4 configuration;
+baseline and variant always receive equivalent settings.
+
+Compilation, the target/sanitizer capability check and initial full-observation
+comparison happen before measurement. The exact same validated sanitized
+binaries remain alive for warm-ups and repeated measurements. Each phase uses
+deterministic AB/BA pairs: round 0 original/transformed, round 1
+transformed/original, then repeat. Every run checks the full returned integer,
+streams, signal and wrapper status against its validated observation. Failure,
+divergence or interruption stops the schedule, retains attempted raw rows, and
+invalidates comparative summaries. Successful prefixes are not averaged after
+a failed comparison. Rejected or unchanged transformations cannot acquire a
+performance result by comparing a program with itself.
+
+The monotonic `time.perf_counter_ns()` duration is **end-to-end process execution
+time**. It starts immediately before `Popen` and ends after process reaping,
+process-group cleanup and bounded capture-thread completion. It includes process
+creation/startup, resource setup in the child, sanitizer, computation, the C
+observation-file write, capture and runner supervision. It excludes compilation,
+run-directory/input preparation, Python capture decoding and observation JSON
+parsing. Nanosecond units describe clock readings, not nanosecond accuracy. No
+startup correction or calibration is applied; tiny fixtures can be dominated by
+startup and harness overhead. At O2, Clang may already perform similar
+transformations.
+
+Complete valid groups report count, median, mean, min/max, sample standard
+deviation, inclusive interpolated quartiles/IQR and coefficient of variation.
+`speedup = median_original / median_transformed` is a dimensionless observed
+**process median ratio**; percentage change is
+`100 * (median_transformed - median_original) / median_original`.
+Unavailable/zero denominators are explicit, and genuine zero durations stay zero.
+Small sample counts, high variation and overlapping distributions are flagged.
+The output establishes neither an algorithmic speedup nor statistical significance.
+
+The CLI prints a concise interpretation and saved paths. JSON is always saved:
+without `--output`, its path is `results/<benchmark_id>/benchmark.json`. `--csv`
+adds `.samples.csv` and `.summary.csv` beside it; `--samples-csv PATH` and
+`--summary-csv PATH` also work independently. All exports join on `benchmark_id`.
+JSON separates the existing `analysis` result from variable measurements under
+`benchmark` and compiler/platform/clock details under `environment_metadata`.
+Raw rows preserve warm-ups (`duration_ns: null`), failures and actual order.
+Missing CSV values are blank, booleans are `true`/`false`, and units are explicit.
+Exact column order, statistical definitions and issue codes are in
+[PHASE5_VALIDATION.md](docs/PHASE5_VALIDATION.md).
+
+All output paths are checked before compilation: neither input nor an output
+alias can be overwritten accidentally, including hardlinks and resolved
+symlink-parent aliases. Final output symlinks, directories and special files are
+rejected. Existing regular report files may be replaced. All sibling temporary
+files are prepared before per-file atomic replacement; a multi-file export is
+not one transaction.
+
+Benchmark exit codes are **0** for a completed behavior-valid schedule (including
+descriptive/unreliable timings), **1** source error, **2** argument/file error,
+**3** compilation failure, **4** execution/measurement failure, timeout or UB,
+**5** different behavior, **6** unavailable/inconclusive/no accepted transformation,
+and **130** interruption. A saved failure report retains the failure exit code.
+Matching unsanitized pairs are inconclusive and are not measured. Phase 6 and
+Phase 7 remain outside this work.
 
 ## Current directory structure
 
@@ -522,7 +629,11 @@ CodeDNA/
 │   ├── models.py
 │   ├── compiler_runner.py
 │   ├── harness.py
-│   └── equivalence.py
+│   ├── equivalence.py
+│   ├── benchmark_models.py
+│   ├── benchmark.py
+│   ├── benchmark_statistics.py
+│   └── benchmark_storage.py
 ├── fingerprint/__init__.py
 ├── visualization/
 │   ├── __init__.py
@@ -533,6 +644,7 @@ CodeDNA/
 │   ├── invalid/     # 6 intentionally invalid C examples
 │   ├── transformations/  # 7 Phase 3 success/rejection examples
 │   ├── runtime/     # 7 full-return/equivalence/failure examples
+│   ├── benchmarks/README.md  # repeatable commands over existing C fixtures
 │   └── comparison/.gitkeep
 ├── tests/
 │   ├── test_setup.py
@@ -553,11 +665,17 @@ CodeDNA/
 │   ├── test_compiler_runner.py
 │   ├── test_harness.py
 │   ├── test_equivalence.py
-│   └── test_phase4_cli.py
+│   ├── test_phase4_cli.py
+│   ├── test_timed_runner.py
+│   ├── test_benchmark.py
+│   ├── test_benchmark_statistics.py
+│   ├── test_benchmark_storage.py
+│   └── test_phase5_cli.py
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── IMPLEMENTATION_PLAN.md
 │   ├── PHASE4_VALIDATION.md
+│   ├── PHASE5_VALIDATION.md
 │   ├── COMPILER_DESIGN.md
 │   └── PROGRESS.md
 ├── results/.gitkeep
@@ -567,8 +685,9 @@ CodeDNA/
 └── README.md
 ```
 
-`runtime/benchmark.py`, `fingerprint/matrix.py`, `fingerprint/similarity.py`, and
-`app.py` remain absent after Phase 4. `compiler/codegen.py` keeps pure source
+`fingerprint/matrix.py`, `fingerprint/similarity.py`, and `app.py` remain absent.
+Phase 5 measurement code is implemented and undergoing acceptance validation.
+`compiler/codegen.py` keeps pure source
 emission separate from IR records, and `compiler.ir.emit_c` retains the planned
 public interface. Shared transformation helpers/reports and explicit sequencing
 live under `transformations/`.
@@ -607,7 +726,7 @@ without a traceback. There is no C preprocessing or line-splicing implementation
 | 2. CFG and IR | Basic blocks, edges, three-address code, diagrams | Ishaan / Zayn |
 | 3. Transformations | Constant propagation/folding and safe loop unrolling | Zayn |
 | 4. Compilation and execution | Clang runner, identical runs, errors/timeouts, equivalence gate | Pranav |
-| 5. Runtime measurement | Repeated times and available hardware counts, JSON/CSV | Pranav |
+| 5. Runtime measurement | Complete: repeated process times, honest missing hardware counts, JSON/CSV; 1384 passing tests | Pranav |
 | 6. Fingerprinting | Normalized response matrix and missing-aware comparisons | Pranav |
 | 7. Dashboard and evaluation | Streamlit demo and AST/CFG/IR/single-run baselines | All |
 
@@ -627,7 +746,8 @@ the AST, and CFG construction consumes TAC. Implemented transformations
 return fresh ASTs and reports. Runtime consumes emitted C and returns structured
 execution/measurement records. Fingerprinting consumes measurements with explicit
 units, provenance, and missing values. These are design contracts, not existing
-APIs except for the completed Phase 1–4 pipeline. Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+APIs beyond the accepted Phase 1–5 pipeline.
+Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Development rules
 
@@ -643,10 +763,12 @@ Benchmark variants with the same compiler flags, inputs, and environment. Verify
 observable results before accepting measurements. Keep raw data and metadata;
 never invent timing values, instruction counts, or similarity scores.
 
-## Next work: Phase 5 (not started)
+## Current gate: Phase 5 validation
 
-The current task stops at the Phase 4 acceptance gate. Repeated measurements,
-instruction-count backends, fingerprints and the dashboard require later phases.
+Actual serial O0/O2 baselines are recorded. Complete the final serial regression
+gate before accepting Phase 5. The current task stops at that gate. Response matrices,
+fingerprint vectors/scores and dashboards have not begun; no hardware-counter
+backend is claimed.
 
 ## References
 

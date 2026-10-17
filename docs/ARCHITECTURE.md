@@ -1,9 +1,11 @@
 # Architecture
 
-Status: Phases 1–4 implemented; Phases 5–7 remain design contracts. Updated
-2026-10-16. Frontend, analysis, TAC/CFG, diagrams, transformations, reports and
+Status: Phases 1–5 accepted; Phases 6–7 remain design contracts.
+Updated 2026-10-17.
+Frontend, analysis, TAC/CFG, diagrams, transformations, reports and
 pure C emission, Clang compilation, full-return execution and observed equivalence
-are operational. No performance-measurement stage has begun.
+are operational. Repeated end-to-end process measurement is implemented; actual
+baseline evidence is recorded; the serial acceptance suite passed all 1384 cases.
 
 ## Research pipeline
 
@@ -42,8 +44,8 @@ not a substitute for implementing it.
 
 ## Boundaries and ownership
 
-The Phase 1–4 signatures below are implemented; Phase 5 onward are **planned
-APIs**, not callable functions today. `compiler/diagnostics.py` shares frontend
+The Phase 1–5 signatures below are implemented and accepted. Phase 6 onward
+signatures are **planned APIs**. `compiler/diagnostics.py` shares frontend
 source mapping and exceptions, and `compiler/__main__.py` supplies the requested
 `python -m compiler` CLI, now extended with semantic/TAC/CFG/graph inspection.
 `compiler/semantic.py` isolates binding and dataflow analysis from typed IR and
@@ -52,7 +54,7 @@ module split avoids mixing the symbol environment with instruction construction.
 Use Python dataclasses and type annotations, explicit result records, and
 schema-versioned JSON. Do not pass PLY-specific objects between stages.
 
-| File / phase | Owner | Interface and responsibility (Phases 1–4 implemented) |
+| File / phase | Owner | Interface and responsibility (Phases 1–5 implemented) |
 | --- | --- | --- |
 | `compiler/lexer.py` / 1 | Ishaan | `tokenize(source: str) -> list[TokenRecord]`; fresh PLY lexer per source; token value and source span |
 | `compiler/parser.py` / 1 | Ishaan | `parse(source: str) -> Program`; PLY grammar, precedence, AST construction; fail with structured diagnostics |
@@ -67,10 +69,13 @@ schema-versioned JSON. Do not pass PLY-specific objects between stages.
 | `transformations/pipeline.py` / 3 | Zayn / Pranav | `apply_transformations(program, sequence=("constants", "unroll"), max_iterations=32) -> PipelineResult`; exact ordered passes, composed provenance and report JSON |
 | `compiler/codegen.py` / 3 | Zayn | `emit_c(program: Program) -> str`, re-exported through `compiler.ir`; fully parenthesized subset C, no execution |
 | `runtime/models.py` / 4 | Pranav | Immutable `CompileConfig`, `ExecutionCase`, compiler/artifact/compilation/execution records |
-| `runtime/compiler_runner.py` / 4 | Pranav | Context-managed `CompilerRunner(config)` with `compile_source(source, label=..., observation_file=...)` and `execute(artifact, case=None)`; module delegates require `workspace=runner` |
+| `runtime/compiler_runner.py` / 4–5 | Pranav | Context-managed `CompilerRunner(config)` with `compile_source(source, label=..., observation_file=...)`, unchanged `execute(artifact, case=None)`, and `timed_execute(artifact, case=None) -> TimedExecution`; module delegates require `workspace=runner` |
 | `runtime/harness.py` / 4 | Pranav | `make_harness(program) -> HarnessSource`; strict `parse_observation(text) -> int`; full signed return and target assertions |
-| `runtime/equivalence.py` / 4 | Pranav / Zayn | `check_equivalence(source, sequence, config=...)`, `compare_sources(left, right, config=...)`, `evaluate_source(source, execute=...)`; reports/observations/provenance |
-| `runtime/benchmark.py` / 5 | Pranav | `benchmark(variants, cases, config) -> BenchmarkReport`; raw samples, aggregation, validation, and provenance |
+| `runtime/equivalence.py` / 4–5 | Pranav / Zayn | Existing `check_equivalence`, `compare_sources`, `evaluate_source`; `prepared_equivalence(...)` yields the same validation report and live owning runner for exact-binary reuse |
+| `runtime/benchmark_models.py` / 5 | Pranav | `BenchmarkConfig`, `TimedExecution`, `BenchmarkSample`, `BenchmarkReport`; explicit timing scope, JSON and limitations |
+| `runtime/benchmark.py` / 5 | Pranav | `benchmark(source, sequence=("constants",), config=..., comparison_source=..., benchmark_id=...) -> BenchmarkReport`; full-observation gate, AB/BA schedule, failure invalidation and concise summary |
+| `runtime/benchmark_statistics.py` / 5 | Pranav | `summarize(durations)` and `compare_summaries(original, transformed)`; pure finite descriptive statistics and reliability flags |
+| `runtime/benchmark_storage.py` / 5 | Pranav | `raw_rows`, `summary_rows`, `validate_output_paths`, `save_report`; fixed CSV schemas, strict JSON and input-preserving atomic files |
 | `fingerprint/matrix.py` / 6 | Pranav | `build_matrix(report) -> ResponseMatrix`; schema alignment, normalization, and missing masks |
 | `fingerprint/similarity.py` / 6 | Pranav | `compare(left, right, config) -> SimilarityResult`; overlap coverage and defined metrics |
 | `app.py` / 7 | All; Pranav integrates | Presentation over those APIs; no duplicate compiler or measurement logic |
@@ -207,7 +212,9 @@ high-level V1 service uses empty stdin/arguments because the existing subset has
 no input operations. Both variants receive the same environment snapshot and
 enforced locale/TZ/UBSan settings. `ExecutionResult` separates `return_value`
 (full signed integer) from `process_returncode` and signal/status, and retains
-stdout/stderr/details. There are **no elapsed-program-time or metric fields**.
+stdout/stderr/details. These Phase 4 records retain their public fields:
+`ExecutionResult` has **no elapsed-time field**. Phase 5 adds a separate
+`TimedExecution(execution, duration_ns)` wrapper.
 
 The harness receives an AST, validates/emits/round-trips canonical subset C and
 renames only the emitter's verified opening header to a collision-free static
@@ -242,26 +249,75 @@ local sources are appropriate. Actual execution coverage is macOS arm64, Apple
 Clang 21.0.0, O0/O2; Linux remains unverified. See
 [actual Phase 4 evidence](PHASE4_VALIDATION.md).
 
-### Measurements (Phase 5 onward; pending)
+### Measurements (Phase 5 complete)
 
-`BenchmarkReport` stores original/variant IDs, applied-pass reports, case IDs,
-raw samples, warmups/repetition count, ordered/interleaved run schedule, medians,
-dispersion, compiler/OS/CPU/dependency versions and environment. Failed or
-non-equivalent variants cannot produce valid fingerprint cells.
+The benchmark uses the existing parser, transformations, emitter and Clang runner.
+`prepared_equivalence` keeps the Phase 4 owning context alive after its capability
+check and independent baseline/variant validation. Only `observed_equivalent`
+permits sampling. The same sanitized artifacts are reused; compilation and the
+initial validation executions are outside the measured series. Unchanged or
+rejected pipelines, mismatches, UB, timeouts and unavailable/inconclusive
+validation retain their status and do not produce a timing comparison.
 
-Every metric has a value or `null`, unit, backend, scope and missing reason:
+`BenchmarkConfig` contains the existing `CompileConfig`, `warmups=5`,
+`repetitions=30` and `max_iterations=32`. Warm-ups accept 0..10000 and measurements
+1..10000 per variant. Every phase uses deterministic alternating pairs: round 0
+original/transformed, round 1 transformed/original, then repeat. Warm-ups are
+untimed but retain full observations. Measured executions check the same full
+return, streams, signal and wrapper status on every repetition. Any failed,
+divergent or interrupted run stops the schedule. All attempted rows survive,
+but both aggregate groups are unavailable/invalid; no successful prefix is
+silently averaged after a failed comparison.
 
-| Metric | Unit and scope | Availability |
+`CompilerRunner.timed_execute` uses the existing execution path, not a separate
+process pipeline. `duration_ns` uses `time.perf_counter_ns()` immediately before
+`Popen` through process reaping, process-group cleanup and bounded capture-thread
+completion. Scope is `end_to_end_process_execution`: process creation/startup,
+child resource setup, sanitizer, computation, C observation-file write, capture
+and supervision are included. Compilation, run-directory/input preparation,
+Python capture decoding and observation JSON parsing are excluded. Clock units
+do not establish clock accuracy or isolate computation. No overhead calibration,
+subtraction or batching into a new native harness is performed.
+
+The pure statistics module retains all supplied durations. A complete group of
+nonnegative built-in integer nanoseconds yields count, median/mean, min/max,
+sample standard deviation (`n-1`), inclusive R7 quartiles/IQR and coefficient of
+variation (`stdev/mean` when defined). One sample has missing standard deviation;
+zero is a real duration. Invalid/missing samples or non-finite results invalidate
+the whole group. Process median ratio is `original/transformed`; percentage
+change is `100*(transformed-original)/original`, with independently checked
+denominators. Small counts, clock-resolution concerns, high CV, IQR overlap and
+dispersion relative to the median gap produce descriptive flags. They are not
+significance tests or evidence of algorithmic speedup. The high-level pipeline
+always discloses startup scope, including at O2 where Clang may already perform
+the source transformation.
+
+Schema-1 benchmark JSON has `benchmark_id`, the Phase 4 deterministic `analysis`,
+`environment_metadata` (compiler/platform/clock/artifact provenance), and
+`benchmark` (settings, raw samples, groups, comparison, metric availability and
+limitations). Raw samples retain phase, actual order/round/variant, duration,
+units/scope, full execution record, expected-observation match, validity and
+issue. Sample commands refer to historical temporary paths after cleanup.
+Measured timings and benchmark IDs are not deterministic compiler-analysis
+results. Record/field ordering and re-export of one report are repeatable.
+
+| Quantity | Unit and scope | Implemented policy |
 | --- | --- | --- |
-| `wall_time_ns` | Monotonic elapsed wall time; declared process/harness scope | macOS and Linux; includes startup unless a later backend isolates kernel work |
-| `hardware_instructions` | Executed hardware instructions; declared `perf` event modifiers and process scope | Linux with working counters and permission |
-| `static_tac_instructions` | Count of actual custom IR instructions, excluding labels | Both platforms after IR generation; separate structural baseline |
+| `samples[].duration_ns` | Nanoseconds; end-to-end process execution | Real monotonic readings for measured attempts; warm-ups/absent readings are `null` |
+| `hardware_instructions` | Instructions; executed hardware instructions | `value=null`, `backend=null`, `status=unavailable`, explicit reason; no counter backend or `perf` requirement |
+| Static TAC operations | Count of actual custom IR instructions, excluding labels | Separate structural quantity; not a substitute for hardware counts and not added to benchmark samples |
 
-Never silently substitute one metric for another. Save JSON as the canonical
-schema and CSV as long-form rows with explicit statuses; blanks represent
-missing values, zero remains a real measurement. Future generated artifacts live
-under `results/<run_id>/` and are ignored; deliberately curated evaluation data
-can be explicitly versioned after review.
+Canonical JSON rejects NaN/Infinity. Separate raw and aggregate CSV files have
+fixed column order, explicit nanosecond fields and dimensionless ratios; missing
+values are blank and genuine zeros remain zero. `benchmark_id` joins every row
+to JSON. `validate_output_paths` checks all input/output aliases before work;
+final output symlinks, directories and special files are refused. Existing
+regular outputs may be replaced. Serialization finishes before directory creation,
+all sibling temporary files are prepared before replacement, and each file is
+atomically replaced; the set of exports is not one transaction. Generated reports
+live under ignored `results/<benchmark_id>/` by default. Exact schemas, math,
+commands, actual baseline samples and passing test-gate evidence are in
+[PHASE5_VALIDATION.md](PHASE5_VALIDATION.md).
 
 ### Fingerprint contract
 
@@ -287,7 +343,10 @@ source emission, provenance and explicit sequence reports. Emitted baseline and
 variant source plus case identity are the Phase 4 boundary. Phase 3 validation
 used pure expected-value/round-trip tests before the Phase 4 boundary. Phase 4
 adds independent Clang execution and full observations without modifying those
-interfaces or beginning Phase 5 measurements.
+interfaces. Phase 5 borrows the same live validated executables and adds optional
+timing wrappers; ordinary Phase 4 call lifetimes and result fields remain intact.
+Its complete acceptance suite passed all 1384 cases. Response matrices and fingerprint scoring
+remain Phase 6 contracts and have not begun.
 
 Every phase adds unit tests and any justified integration tests, updates progress,
 and passes its acceptance gate before the next phase starts. Interface changes

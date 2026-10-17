@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 import sys
+from uuid import uuid4
 
 from compiler.ast_nodes import ast_to_json
 from compiler.cfg import build_cfg, format_cfg
@@ -13,6 +14,9 @@ from compiler.parser import parse
 from compiler.semantic import analyze
 from runtime.equivalence import check_equivalence, compare_sources, evaluate_source
 from runtime.models import CompileConfig
+from runtime.benchmark import benchmark, format_benchmark_summary
+from runtime.benchmark_models import BenchmarkConfig
+from runtime.benchmark_storage import save_report, validate_output_paths
 from transformations.common import MAX_UNROLL_LIMIT
 from transformations.pipeline import PASS_NAMES, apply_transformations
 from visualization.graph_renderer import GraphRenderError, ast_to_dot, cfg_to_dot, render
@@ -41,6 +45,7 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--compile", action="store_true", help="Compile validated C in a temporary build and display its JSON report")
     mode.add_argument("--run", action="store_true", help="Compile/run and display a full signed integer observation as JSON")
     mode.add_argument("--equiv", action="store_true", help="Compare original/transformed executions (default pass: constants)")
+    mode.add_argument("--benchmark", action="store_true", help="Validate, warm up, repeatedly measure, and save a benchmark report")
     arguments.add_argument(
         "--transform", action="append", choices=PASS_NAMES, default=[],
         help="Apply a pass; repeat this option to specify the exact sequence",
@@ -48,17 +53,22 @@ def main(argv: list[str] | None = None) -> int:
     arguments.add_argument("--max-unroll", type=int, help="Maximum iterations per loop (default 32; allowed 0..1024)")
     arguments.add_argument("-o", "--output", type=Path, help="Write output to this file (parents created)")
     arguments.add_argument("--format", choices=("dot", "svg", "png", "pdf"), help="Graph output format; default dot")
-    arguments.add_argument("--against", type=Path, help="With --equiv, compare a second validated C file instead of applying passes")
+    arguments.add_argument("--against", type=Path, help="With --equiv or --benchmark, compare a second validated C file instead of applying passes")
     arguments.add_argument("--clang", help="Clang executable path or name (default clang)")
     arguments.add_argument("--opt", choices=("O0", "O2"), help="Clang optimization level (default O0)")
     arguments.add_argument("--compile-timeout", type=float, help="Compilation deadline in seconds (default 10)")
     arguments.add_argument("--execution-timeout", type=float, help="Execution deadline in seconds (default 2)")
     arguments.add_argument("--sanitize", action=argparse.BooleanOptionalAction, default=None, help="Enable UBSan (default enabled); no silent fallback")
+    arguments.add_argument("--warmups", type=int, help="Benchmark warm-ups per variant (default 5; 0..10000)")
+    arguments.add_argument("--repetitions", type=int, help="Benchmark measured runs per variant (default 30; 1..10000)")
+    arguments.add_argument("--csv", action="store_true", help="Export benchmark raw and summary CSV beside its JSON")
+    arguments.add_argument("--samples-csv", type=Path, help="Export benchmark raw observations to this CSV")
+    arguments.add_argument("--summary-csv", type=Path, help="Export benchmark aggregate groups to this CSV")
     arguments.add_argument("source", type=Path, help="UTF-8 C source file")
     options = arguments.parse_args(argv)
     if not any((options.tokens, options.ast, options.check, options.tac, options.cfg,
                 options.ast_dot, options.cfg_dot, options.c, options.report,
-                options.compile, options.run, options.equiv)):
+                options.compile, options.run, options.equiv, options.benchmark)):
         if options.transform:
             options.report = True
         else:
@@ -67,13 +77,16 @@ def main(argv: list[str] | None = None) -> int:
         arguments.error("--report requires at least one --transform")
     if options.tokens and options.transform:
         arguments.error("--tokens inspects original source and cannot be combined with --transform")
-    runtime_mode = options.compile or options.run or options.equiv
+    runtime_mode = options.compile or options.run or options.equiv or options.benchmark
+    if not options.benchmark and (options.warmups is not None or options.repetitions is not None
+                                  or options.csv or options.samples_csv is not None or options.summary_csv is not None):
+        arguments.error("warm-up, repetition and CSV options require --benchmark")
     if not runtime_mode and any(value is not None for value in (
         options.against, options.clang, options.opt, options.compile_timeout, options.execution_timeout, options.sanitize,
     )):
-        arguments.error("compiler/execution options require --compile, --run or --equiv")
-    if options.against and not options.equiv:
-        arguments.error("--against requires --equiv")
+        arguments.error("compiler/execution options require --compile, --run, --equiv or --benchmark")
+    if options.against and not (options.equiv or options.benchmark):
+        arguments.error("--against requires --equiv or --benchmark")
     if options.against and options.transform:
         arguments.error("--against compares independent sources and cannot be combined with --transform")
     config = None
@@ -84,6 +97,17 @@ def main(argv: list[str] | None = None) -> int:
                 compile_timeout=10.0 if options.compile_timeout is None else options.compile_timeout,
                 execution_timeout=2.0 if options.execution_timeout is None else options.execution_timeout,
                 sanitize=True if options.sanitize is None else options.sanitize,
+            )
+        except ValueError as error:
+            arguments.error(str(error))
+    benchmark_config = None
+    if options.benchmark:
+        try:
+            benchmark_config = BenchmarkConfig(
+                compile_config=config,
+                warmups=5 if options.warmups is None else options.warmups,
+                repetitions=30 if options.repetitions is None else options.repetitions,
+                max_iterations=32 if options.max_unroll is None else options.max_unroll,
             )
         except ValueError as error:
             arguments.error(str(error))
@@ -101,6 +125,20 @@ def main(argv: list[str] | None = None) -> int:
     if options.output is not None and not options.output.name:
         arguments.error("--output must include a filename")
     try:
+        if options.benchmark:
+            identifier = uuid4().hex
+            benchmark_output = options.output if options.output is not None else Path("results") / identifier / "benchmark.json"
+            samples_output = options.samples_csv
+            summary_output = options.summary_csv
+            if options.csv:
+                samples_output = samples_output if samples_output is not None else benchmark_output.with_suffix(".samples.csv")
+                summary_output = summary_output if summary_output is not None else benchmark_output.with_suffix(".summary.csv")
+            protected = [options.source, *([options.against] if options.against else [])]
+            try:
+                validate_output_paths([benchmark_output, *([samples_output] if samples_output is not None else []),
+                                       *([summary_output] if summary_output is not None else [])], protected)
+            except ValueError as error:
+                arguments.error(str(error))
         if options.output is not None:
             outputs = [options.output]
             if graph_mode:
@@ -117,7 +155,8 @@ def main(argv: list[str] | None = None) -> int:
             diagnostics = analyze(parse(source)).diagnostics
             settings = {"config": config, "source_name": str(options.source),
                         "max_iterations": 32 if options.max_unroll is None else options.max_unroll}
-            if options.equiv and options.against:
+            comparison_source = None
+            if (options.equiv or options.benchmark) and options.against:
                 try:
                     with options.against.open(encoding="utf-8", newline="") as comparison_file:
                         comparison_source = comparison_file.read()
@@ -129,6 +168,28 @@ def main(argv: list[str] | None = None) -> int:
                 except FrontendError as error:
                     print(error.diagnostic.format(str(options.against)), file=sys.stderr)
                     return 1
+            if options.benchmark:
+                sequence = () if options.against else options.transform or ("constants",)
+                result = benchmark(source, sequence, config=benchmark_config, source_name=str(options.source),
+                                   comparison_source=comparison_source, comparison_source_name=str(options.against),
+                                   benchmark_id=identifier)
+                try:
+                    exports = save_report(result, benchmark_output, samples_csv=samples_output,
+                                          summary_csv=summary_output, protected_paths=protected)
+                except ValueError as error:
+                    arguments.error(str(error))
+                for diagnostic in diagnostics:
+                    print(diagnostic.format(str(options.source)), file=sys.stderr)
+                print(format_benchmark_summary(result))
+                print(f"Saved {exports.json_path}")
+                if exports.samples_csv is not None:
+                    print(f"Saved {exports.samples_csv}")
+                if exports.summary_csv is not None:
+                    print(f"Saved {exports.summary_csv}")
+                return {"completed": 0, "compilation_failure": 3, "execution_failure": 4,
+                        "measurement_failure": 4, "timeout": 4, "undefined_behavior": 4,
+                        "different_behavior": 5, "interrupted": 130}.get(result.status, 6)
+            elif options.equiv and options.against:
                 result = compare_sources(source, comparison_source, config=config,
                                          original_name=str(options.source), transformed_name=str(options.against))
             elif options.equiv:
@@ -208,6 +269,9 @@ def main(argv: list[str] | None = None) -> int:
     except RecursionError:
         print(f"{options.source}: frontend error: source nesting exceeds Python's recursion limit", file=sys.stderr)
         return 1
+    except KeyboardInterrupt:
+        print(f"{options.source}: interrupted before a complete report was available", file=sys.stderr)
+        return 130
     if output:
         print(output, end="" if output.endswith("\n") else "\n")
     return exit_code

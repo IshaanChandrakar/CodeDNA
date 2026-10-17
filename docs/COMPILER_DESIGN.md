@@ -1,8 +1,9 @@
 # Compiler design
 
 Status: Phases 1–4 grammar, AST, analysis, TAC/CFG, diagrams, transformations,
-C emission, Clang execution and observed equivalence implemented. Phase 5 remains
-pending. Updated 2026-10-16.
+C emission, Clang execution and observed equivalence implemented. Phase 5 repeated
+process measurement is implemented and accepted with 1384 passing tests.
+Updated 2026-10-17. Phases 6–7 remain pending.
 This document is the shared frontend/representation contract.
 
 ## Language boundary
@@ -476,4 +477,82 @@ Versioned reports include source/harness hashes and canonical C, keep determinis
 results separate from environmental paths/compiler/platform metadata, and contain
 no timings or performance fields. macOS arm64/Apple Clang 21.0.0 has actual O0/O2
 coverage; Linux is not yet verified. Details, real emitted programs and commands
-are in [PHASE4_VALIDATION.md](PHASE4_VALIDATION.md). Phase 5 has not begun.
+are in the historical [PHASE4_VALIDATION.md](PHASE4_VALIDATION.md).
+
+## Phase 5 — repeated measurement boundary (complete)
+
+The accepted user grammar and signed 32-bit arithmetic rules are unchanged.
+Measurements do not add input operations, native loops around the computation,
+or optimization passes. `prepared_equivalence` reuses Phase 4 parse/analyze,
+ordered transformations, canonical emission, target assertions, capability check,
+independent compilation and full observations. It yields its report with the
+owning runner still alive. Only observed-equivalent sanitized binaries enter the
+warm-up/measurement schedule; those exact artifacts remain in use until cleanup.
+Matching unsanitized runs are inconclusive. A rejected/inapplicable pipeline is
+not transformed performance evidence. Independent validated sources may be
+benchmarked with an empty pass sequence.
+
+`BenchmarkConfig` defaults to 5 warm-ups and 30 measured executions per variant,
+with 0..10000 and 1..10000 accepted respectively. C11, O0/O2, timeout and output
+controls reuse `CompileConfig`. Each phase independently restarts deterministic
+AB/BA ordering: original/transformed in even-numbered rounds, then
+transformed/original in odd-numbered rounds. There is no random seed or hidden
+randomization. Warm-ups retain observations with `duration_ns=None`.
+
+The timed seam wraps the existing runner and leaves `ExecutionResult` unchanged.
+`TimedExecution(execution, duration_ns)` starts `time.perf_counter_ns()` immediately
+before `Popen` and stops after process reaping, group cleanup and bounded capture
+completion. It includes process creation/startup, child resource setup,
+sanitizer/computation, the C protocol-file write, capture and supervision. It
+excludes compilation, preparation of the run directory/input, Python capture
+decoding and observation JSON parsing. Its scope is
+`end_to_end_process_execution`, not isolated program computation. No correction,
+calibration or fabricated subtraction is applied. The report records nanosecond
+units and clock implementation/resolution while disclaiming nanosecond accuracy.
+
+Every repeated execution must match its validated status, complete integer,
+wrapper code, signal, stdout and stderr. A process failure, mismatch, interrupt,
+missing/noninteger/negative clock value or unsupported backend observation stops
+the schedule. Raw attempts and failed statuses remain; valid prefixes are not
+silently averaged. Both summary groups are invalid/unavailable when the
+comparison fails, even if one group happened to finish first.
+
+Statistics accept a complete sequence of nonnegative built-in integer
+nanoseconds. Missing values, booleans, floats, negative inputs and non-finite
+numeric results invalidate the group. Real zeros remain zero with explicit
+clock-resolution/zero-mean flags. A complete group reports median, arithmetic
+mean, min/max and sample standard deviation (`n-1` denominator; missing at `n=1`).
+Inclusive R7 quartiles use index `(n-1)*p`, linearly interpolating adjacent sorted
+values for `p=0.25` and `p=0.75`; IQR is Q3-Q1. CV is sample standard deviation
+divided by a positive mean. One sample has Q1=Q3 and IQR=0.
+
+The process median ratio is `median_original / median_transformed`; percentage
+change is `100*(median_transformed-median_original)/median_original`. Each
+denominator is checked independently; an undefined number remains missing.
+Ratios above one mean a smaller transformed process median in those samples.
+Fewer than five samples, clock-resolution flags, CV above 0.1, overlapping closed
+IQR intervals, or a median gap no larger than the larger IQR trigger descriptive
+reliability flags. These are heuristics, not hypothesis tests. The high-level
+pipeline always declares startup/harness scope, so neither an algorithmic speedup
+nor statistical significance follows from a ratio. O2 may already perform the
+same source-level transformations.
+
+Schema-1 JSON separates deterministic Phase 4 `analysis` from variable benchmark
+samples/statistics and compiler/platform/clock metadata. Each raw record retains
+phase, order/round, variant, duration/unit/scope, full execution data, expected
+match, validity and issue. Canonical JSON refuses NaN/Infinity; missing metrics
+are `null`. Raw and summary CSV have fixed headers, preserve row order and use
+blank missing values, lowercase booleans, explicit nanosecond columns and
+dimensionless ratios. `benchmark_id` joins exports. Path validation protects both
+inputs and all outputs against aliases; final symlinks, directories and special
+files are refused. All temporary files are prepared before per-file atomic
+replacement, without claiming one transaction across JSON and CSV.
+
+Hardware instructions are unavailable (`value=None`, `backend=None`, explicit
+unit/scope/status/reason). There is no hardware-counter backend or `perf`
+requirement, and static TAC operations are never presented as machine counts.
+Actual serial O0/O2 baseline samples and the passing 1384-case acceptance gate
+are recorded in [PHASE5_VALIDATION.md](PHASE5_VALIDATION.md). macOS arm64 is the local execution
+platform; Linux remains unverified. Trusted local fixture execution is not a
+filesystem/network sandbox. No Phase 6 matrices/vectors/similarity scoring or
+Phase 7 dashboard has begun.

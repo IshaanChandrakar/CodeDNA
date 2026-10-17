@@ -1,15 +1,19 @@
 # Progress
 
-Updated: 2026-10-16 (Asia/Kolkata). Status is recorded from completed work, not
+Updated: 2026-10-17 (Asia/Kolkata). Status is recorded from completed work, not
 from the existence of a design document or an empty package.
 
 ## Current task
 
-Repository setup (M0) and Phases 1–4 (M1–M4) are complete. The existing checkout
+Repository setup (M0) and Phases 1–5 (M1–M5) are complete. The existing checkout
 remains on `main` with the original GitHub remote. Phase 3 began from the existing
 clean Phase 2 checkout, preserved all 530 prior test cases, and did not change Git
 configuration, create a branch, commit or push. Phase 4 passed its acceptance
-gate with **1111 passing tests**, including all **811 prior tests**. Phases 5–7 remain pending.
+gate with **1111 passing tests**, including all **811 prior tests**. Phase 5 repeated
+measurement, statistics and structured exports passed their serial acceptance
+gate with **1384 passing tests**, retaining all **1111** prior cases. Actual
+serial O0/O2 baselines and independent JSON/CSV/statistical checks are recorded.
+Phases 6–7 have not begun.
 
 | Setup item | Status |
 | --- | --- |
@@ -20,8 +24,9 @@ gate with **1111 passing tests**, including all **811 prior tests**. Phases 5–
 | Write architecture, compiler design and seven-phase plan | Complete |
 | Validate dependency installation and smoke tests | Complete |
 
-The setup/Phase 1–2 validation logs below are historical. Phase 3 evidence is
-recorded separately below, followed by Phase 4 evidence. No phase is ongoing.
+The setup and Phase 1–4 validation logs below are historical acceptance records.
+Their statements about later phases describe the state at those gates. Current
+Phase 5 implementation and passing acceptance evidence are recorded separately.
 
 ## Contributor tracking
 
@@ -29,7 +34,7 @@ recorded separately below, followed by Phase 4 evidence. No phase is ongoing.
 | --- | --- | --- | --- |
 | Ishaan — Frontend | Phase 1 frontend; Phase 2 TAC-derived basic blocks/CFG and AST/CFG diagrams | No implementation tasks | Phase 7 frontend/graph demo integration |
 | Zayn — Transformations | Phase 2 analysis/TAC; Phase 3 transformations/reports; Phase 4 pipeline/provenance integration | No implementation tasks | Phase 7 transformation demo |
-| Pranav — Runtime/evaluation | Phase 4 Clang runner, full-return harness, equivalence/CLI and tests; all 811 prior tests retained | No implementation tasks | Phases 5–6 measurements/fingerprints; Phase 7 dashboard/evaluation |
+| Pranav — Runtime/evaluation | Phase 4 runtime; Phase 5 repeated measurements, statistics, exports and serial validation; all 1111 prior cases retained | No implementation tasks | Phase 6 fingerprints; Phase 7 dashboard/evaluation |
 
 Rows track progress by the team's agreed responsibility areas. They do not claim
 that named individuals have independently authored or reviewed these changes.
@@ -42,7 +47,7 @@ that named individuals have independently authored or reviewed these changes.
 | 2. Semantic analysis/CFG/IR | Complete | Real symbols/dataflow, TAC/CFG, diagrams and 530 passing tests; evidence below |
 | 3. Transformations | Complete | Fresh AST passes, reports/source round trips, expected-value tests; 811 passing total |
 | 4. Compilation/execution | Complete | Real Clang O0/O2 pipeline, exact full returns, mismatch/UB/failure/timeout/cleanup tests; 1111 passing total |
-| 5. Measurement | Pending | Raw repeated timings, truthful counter availability, JSON/CSV provenance |
+| 5. Measurement | Complete | Genuine O0/O2 baselines, 360 measured primary samples, checked JSON/CSV/statistics and 1384 passing tests |
 | 6. Fingerprinting | Pending | Real response matrices/comparisons, zero/missing-value tests |
 | 7. Dashboard/evaluation | Pending | End-to-end demo, all four baselines, reproducible evaluation evidence |
 
@@ -360,8 +365,105 @@ are in [PHASE4_VALIDATION.md](PHASE4_VALIDATION.md).
 - [x] Run all 1111 tests without skips, preserving all 811 prior tests.
 - [x] Update requested documentation and stop before Phase 5; no commit, push, branch or Git configuration changes.
 
-## Next development task — Phase 5 (not started)
+## Phase 5 implementation and validation log — 2026-10-17
 
-The task stops at the Phase 4 gate. No repeated measurements, runtime metrics,
-instruction counts, performance CSV, response matrix, fingerprints or dashboard
-have been introduced.
+Implemented `runtime/benchmark_models.py`, `runtime/benchmark.py`,
+`runtime/benchmark_statistics.py` and `runtime/benchmark_storage.py`. The existing
+runner provides an optional timing seam over its ordinary bounded process path;
+`prepared_equivalence` keeps the validated original/transformed executables alive
+for reuse. The CLI adds repeated benchmarking and JSON/raw-sample CSV/summary CSV
+exports. Existing compiler semantics, transformation algorithms and Phase 4
+`ExecutionResult` fields are retained. No new dependency or C syntax is required.
+
+Every benchmark first requires Phase 4 observed equivalence. Transformation
+benchmarks require an accepted change; independent-source controls remain labeled
+as such. Defaults are five untimed warm-ups and thirty timed
+executions per variant, alternating original/transformed and transformed/original
+pairs independently in each phase. Each repetition checks the full observation.
+Failure, drift, timeout, UB, invalid clock data or interruption stops the schedule
+and invalidates both comparative summaries; raw attempts remain available.
+
+Timing uses `perf_counter_ns` from immediately before process creation through
+process reaping, process-group cleanup and bounded capture-thread completion.
+Compilation, run-directory preparation, Python capture decoding and observation
+JSON parsing are excluded. This is end-to-end process execution, including
+startup, sanitizer, harness and supervision overhead. Descriptive statistics,
+dispersion flags and observed median ratios do not establish algorithmic speedup
+or statistical significance. Hardware instructions are unavailable (`null` in
+JSON, blank in CSV), with an explicit reason and no counter backend.
+
+Schema-1 JSON keeps deterministic Phase 4 analysis separate from benchmark data
+and environmental metadata. All CSV rows include the report's `benchmark_id`;
+missing values are preserved and actual zeros remain zero. Destination preflight
+protects both input paths and all outputs against direct/symlink/hardlink aliases
+before compilation or directory creation. Files are replaced atomically per
+destination after all temporary exports are prepared; the set is not one atomic
+transaction.
+
+Current observed environment: Apple M2, eight logical cores, macOS arm64,
+Python **3.14.5**, Apple Clang **21.0.0 (clang-2100.3.34.2)**, target
+**arm64-apple-darwin25.6.0**. Linux and other Python/compiler versions remain
+unverified. Background system load of approximately 14 was observed during
+validation, with XProtect/MobileAsset activity present. That observation does not
+identify the cause of any timeout or timing variation; no host security setting
+was changed.
+
+| Validation item | Current evidence status |
+| --- | --- |
+| `.venv/bin/python -m pytest -q --tb=short --showlocals` | **1384 passed, 0 failed, 0 skipped**, 269.75 seconds of test-suite wall time; all 1111 historical cases plus 273 new cases |
+| New benchmark orchestration tests | **95 passed** |
+| New pure statistics tests | **64 passed** |
+| New persistence tests | **35 passed** |
+| New timing seam tests | **24 passed** |
+| New benchmark CLI tests | **55 passed** |
+| Constants, unrolling and combined passes at O0/O2 | Six actual serial groups completed, five warm-ups and thirty measurements per variant: 60 warm-up and 360 measured rows |
+| Export recomputation | Thirteen JSON/raw CSV/summary CSV sets checked; statistics independently recomputed; cleanup verified |
+| `.venv/bin/python -m pip check`, `git diff --check`, local documentation links | No broken requirements; clean whitespace; links resolve |
+
+The baseline commands use `--execution-timeout 10`; this actual experiment setting
+is retained in each report. The ordinary API/CLI execution-timeout default remains
+two seconds. Each primary condition retained all observations and returned the
+expected complete value (257, 64 or 146). The observed original/transformed
+process median ratios were 1.002011/0.998617 for constants O0/O2,
+0.999593/1.000298 for unrolling, and 1.003006/1.002373 for combined passes. Every
+comparison was `unreliable`, with IQR overlap and a median difference no larger
+than dispersion; constants-O0 also had high variation. No outlier was removed,
+no overhead correction was applied and no algorithmic speedup or significance
+claim follows. The additional negative arithmetic run preserved -201 with one
+warm-up/five measurements per variant. Actual inapplicable, rejected, mismatch,
+UB, unsanitized and three-second timeout reports have no measured rows or usable
+ratios.
+
+Earlier overlapping integration runs that hit execution deadlines are not
+accepted as a passing gate or usable baseline. A pre-fix full audit run produced
+1371 passes and one fake-compiler output-limit case with `os_error` rather than
+`output_limit`; it was not a timeout. That case passed alone and in thirty
+repetitions, with cause unidentified. A subsequent gate attempt was interrupted
+after 504 passes and a fake-compiler discovery timeout. That test fixture now
+allows the ordinary ten-second budget for cold discovery, then retains its
+original one-second deadline for the twenty-second fake compilation. Assertions
+for timeout, diagnostic retention and exactly one probe are unchanged; the
+focused case passed in 2.82 seconds. Production defaults are unchanged.
+The final complete serial gate passed all **1384 cases** after these narrow
+audit/test-setup fixes. Test-suite duration is validation evidence, not a C
+performance measurement. Detailed methodology, actual exports, statistical
+definitions and passing gate evidence are in
+[PHASE5_VALIDATION.md](PHASE5_VALIDATION.md).
+
+### Phase 5 acceptance checklist
+
+- [x] Gate repeated measurements on existing full-observation validation.
+- [x] Reuse the same sanitized binaries with alternating untimed/timed schedules.
+- [x] Retain raw samples, missing values, invalidation reasons and truthful metric availability.
+- [x] Define finite descriptive statistics, quartiles, ratios and noise heuristics.
+- [x] Add safe JSON/raw CSV/summary CSV exports and benchmark CLI controls.
+- [x] Run the final complete serial gate, preserving all 1111 Phase 1–4 cases.
+- [x] Record and independently recompute actual O0/O2 baseline samples and summaries.
+- [x] Finish the final dependency/documentation checks and accept Phase 5.
+
+## Next phase — Phase 6 (not started)
+
+Phase 5 is accepted and this task stops at its gate. Response matrices, DNA
+vectors, fingerprint classification and the dashboard remain unimplemented.
+Phases 6–7 have not begun. No commit, push, branch or Git configuration change is
+part of this task.

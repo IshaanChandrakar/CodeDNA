@@ -160,7 +160,11 @@ else
 fi
 ''')
     path.chmod(0o700)
-    with CompilerRunner(CompileConfig(compiler=str(path), compile_timeout=1.0)) as runner:
+    # Discover the cold fixture with the ordinary compiler budget. Only the
+    # deliberately sleeping compilation needs the short test deadline; discovery
+    # latency is not the behavior this test asserts.
+    with CompilerRunner(CompileConfig(compiler=str(path), compile_timeout=10.0)) as runner:
+        runner.config = CompileConfig(compiler=str(path), compile_timeout=1.0)
         for _ in range(2):
             result = runner.compile_source("int main(){return 0;}")
             assert result.status == "timeout" and result.artifact is None

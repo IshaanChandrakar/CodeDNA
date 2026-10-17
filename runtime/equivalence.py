@@ -7,6 +7,7 @@ programs. Source errors continue to use the compiler's source-located exceptions
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from contextlib import contextmanager, nullcontext
 import hashlib
 import json
 from pathlib import Path
@@ -211,8 +212,11 @@ def _evaluate_pair(
     reports: tuple[TransformationReport, ...], origins: Mapping[str, str],
     comparison_kind: str, max_iterations: int,
     comparison_source_name: str | None = None,
+    _runner: CompilerRunner | None = None,
 ) -> EquivalenceReport:
-    with CompilerRunner(config) as runner:
+    # The benchmark borrows the same validated executables while their owning
+    # context is alive. Ordinary Phase 4 calls still own/close their context.
+    with (nullcontext(_runner) if _runner is not None else CompilerRunner(config)) as runner:
         # A known-valid program checks the target assertions and the configured
         # sanitizer/link/runtime capability. No silent unsanitized fallback.
         probe_source = "int main(void) { return 0; }"
@@ -251,6 +255,48 @@ def _evaluate_pair(
             MappingProxyType(dict(origins)), config, runner.compiler_info, original, transformed,
             capability, str(runner.root), max_iterations, comparison_source_name,
         )
+
+
+@contextmanager
+def prepared_equivalence(
+    source: str, sequence: Sequence[str] = ("constants",), *, config: CompileConfig | None = None,
+    max_iterations: int = 32, source_name: str = "<input>",
+    comparison_source: str | None = None, comparison_source_name: str = "<transformed>",
+):
+    """Yield the Phase 4 report and its owning runner before artifact cleanup.
+
+    Compilation, capability checks and full observations use the same code as
+    normal equivalence calls. Consumers may repeat those exact binaries inside
+    the context; serialize final reports after leaving it. No artifact is kept.
+    """
+    original = parse(source)
+    analyze(original)
+    if comparison_source is None:
+        pipeline = apply_transformations(original, sequence, max_iterations=max_iterations)
+        transformed = pipeline.program
+        analyze(transformed)
+        transformed_source = emit_c(transformed)
+        sequence, reports, origins = pipeline.sequence, pipeline.reports, pipeline.origins
+        comparison_kind = "transformation_pipeline"
+        second_name = None
+    else:
+        if sequence:
+            raise ValueError("Independent source comparison cannot also apply transformations")
+        transformed = parse(comparison_source)
+        analyze(transformed)
+        transformed_source = comparison_source
+        sequence, reports, origins = (), (), {}
+        comparison_kind = "independent_sources"
+        second_name = comparison_source_name
+    config = config or CompileConfig()
+    with CompilerRunner(config) as runner:
+        report = _evaluate_pair(
+            original, transformed, source=source, transformed_source=transformed_source,
+            source_name=source_name, config=config, sequence=tuple(sequence), reports=reports,
+            origins=origins, comparison_kind=comparison_kind, max_iterations=max_iterations,
+            comparison_source_name=second_name, _runner=runner,
+        )
+        yield runner, report
 
 
 def check_equivalence(

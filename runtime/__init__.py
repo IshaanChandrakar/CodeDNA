@@ -1,4 +1,4 @@
-"""Controlled Clang compilation, full-return execution and observed equivalence.
+"""Clang execution, observed equivalence and repeated process-time measurements.
 
-No benchmark or performance-measurement backend is implemented here.
+Benchmarking reuses the compiler runner and full-return observation harness.
 """
