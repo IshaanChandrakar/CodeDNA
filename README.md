@@ -13,7 +13,13 @@ Repository: [Trifecta-tech/CompilerFallSem](https://github.com/Trifecta-tech/Com
 
 ## Current status
 
-**Phases 1–5 are complete:** the PLY frontend, typed AST, semantic analysis, TAC,
+Runtime stability follow-up (2026-10-19): confirmed process-supervision defects
+are corrected. Two complete serial runs passed **1720 tests each**, retaining all
+1709 prior cases and adding eleven regressions; intentional timeout tests and
+the two-second production default remain intact. The earlier totals below are
+historical gates. See [the investigation](docs/RUNTIME_STABILITY.md).
+
+**Phases 1–6 are complete:** the PLY frontend, typed AST, semantic analysis, TAC,
 CFGs/diagrams, constant propagation/folding, conservative full loop unrolling,
 ordered pass reports, C emission, controlled Clang builds/execution and observed
 equivalence reports. The accepted Phase 4 gate passed **1111 tests**, including
@@ -23,7 +29,12 @@ gate passed **1384 tests, 0 failed, 0 skipped**, retaining all **1111** prior ca
 and adding **273** cases. Six genuine O0/O2 baseline conditions preserve 360 timed
 samples and 60 untimed warm-ups; none establishes an algorithmic speedup. Evidence is in
 [PROGRESS.md](docs/PROGRESS.md) and [PHASE5_VALIDATION.md](docs/PHASE5_VALIDATION.md).
-**Phases 6–7 have not begun.** Fingerprints and the dashboard remain absent.
+Phase 6 response matrices, descriptive fingerprints and missing-aware comparison
+passed the complete serial gate: **1709 passed, 0 failed, 0 skipped** (all 1384
+prior cases plus 325 new cases). Genuine report ingestion, deterministic JSON/CSV,
+compatibility and unreliable-timing exclusions are validated. Full evidence is
+in [PHASE6_VALIDATION.md](docs/PHASE6_VALIDATION.md).
+**Phase 7 has not begun; the dashboard remains absent.**
 
 The research hypothesis is to be evaluated: a similar fingerprint is evidence
 for investigation, not proof of semantic equivalence. Timing noise, constant
@@ -119,6 +130,8 @@ statistics, export and benchmark-CLI tests. Real Clang tests and baseline
 benchmarks should run serially to avoid adding avoidable background load. Pure
 statistics fixtures check mathematical results without asserting a particular
 program duration or speedup. Hardware counters are not used.
+Phase 6 tests reuse thirteen genuine saved Phase 5 reports for matrix/extraction,
+mixed-feature comparisons, serialization and CLI checks without rerunning Clang.
 
 ```sh
 python -m pytest tests/test_semantic.py tests/test_ir.py tests/test_cfg.py
@@ -128,6 +141,8 @@ python -m pytest tests/test_transformations.py tests/test_phase3_cli.py
 python -m pytest tests/test_harness.py tests/test_compiler_runner.py tests/test_equivalence.py tests/test_phase4_cli.py
 python -m pytest tests/test_benchmark_statistics.py tests/test_benchmark_storage.py
 python -m pytest tests/test_timed_runner.py tests/test_benchmark.py tests/test_phase5_cli.py
+python -m pytest tests/test_fingerprint_models.py tests/test_fingerprint_matrix.py tests/test_fingerprint_extraction.py tests/test_fingerprint_similarity.py
+python -m pytest tests/test_fingerprint_storage.py tests/test_phase6_cli.py
 ```
 
 ## Phase 1 usage
@@ -600,8 +615,101 @@ descriptive/unreliable timings), **1** source error, **2** argument/file error,
 **3** compilation failure, **4** execution/measurement failure, timeout or UB,
 **5** different behavior, **6** unavailable/inconclusive/no accepted transformation,
 and **130** interruption. A saved failure report retains the failure exit code.
-Matching unsanitized pairs are inconclusive and are not measured. Phase 6 and
-Phase 7 remain outside this work.
+Matching unsanitized pairs are inconclusive and are not measured. Phase 6 report
+commands are described below; Phase 7 remains pending.
+
+## Phase 6 usage — accepted
+
+These commands reuse the [thirteen genuine Phase 5 reports](examples/observations/phase5/README.md).
+They do not compile C or rerun measurements. A matrix can contain several
+configurations, while each extracted fingerprint contains exactly one.
+The first matrix command selects three records; the full thirteen-record
+demonstration command and exports are in the Phase 6 validation report.
+
+```sh
+python -m compiler --matrix --benchmark-report examples/observations/phase5/constants-O0.json --benchmark-report examples/observations/phase5/constants-O2.json --benchmark-report examples/observations/phase5/unroll-O0.json --output results/phase6/matrix.json --csv
+python -m compiler --fingerprint --benchmark-report examples/observations/phase5/constants-O0.json --output results/phase6/constants-O0.json --csv
+python -m compiler --fingerprint --benchmark-report examples/observations/phase5/constants-O2.json --output results/phase6/constants-O2.json --csv
+python -m compiler --fingerprint --benchmark-report examples/observations/phase5/unroll-O0.json --output results/phase6/unroll-O0.json --csv
+python -m compiler --compare-fingerprints results/phase6/constants-O0.json --against results/phase6/constants-O2.json --alignment configuration --output results/phase6/configuration-comparison.json --csv
+python -m compiler --compare-fingerprints results/phase6/constants-O0.json --against results/phase6/constants-O0.json --feature-group performance --inspect-features
+```
+
+Without `--output`, stdout is structured JSON; `--inspect-features` also writes
+readable values, units, validity, reliability and exclusion reasons to stderr.
+With `--output`, the CLI prints a summary and saved paths; `--csv` writes one
+long-form `<stem>.csv` beside JSON. Summaries list configuration identifiers with
+optimization/compiler labels. For a saved multi-configuration matrix, use
+`--fingerprint MATRIX.json --configuration ID`, copying the desired ID from the
+matrix summary. Optional repeated `--source-id`, `--pipeline-id` and
+`--observation-id` filters select observations explicitly.
+
+Actual derived values from the genuine reports:
+
+| Feature | Constants O0 | Unroll O0 |
+| --- | ---: | ---: |
+| `pipeline.expressions_folded` | 2 | 0 |
+| `pipeline.references_propagated` | 1 | 0 |
+| `pipeline.loops_unrolled` | 0 | 1 |
+| `pipeline.iterations_expanded` | 0 | 4 |
+| `tac.original.operations` → `tac.transformed.operations` | 4 → 2 | 12 → 21 |
+| `tac.response.operations` | -0.5 | 0.75 |
+| Recorded `performance.median_ratio` | 1.002010891400634 | 0.9995925965869535 |
+| Timing reliability | `unreliable`, excluded from scores | `unreliable`, excluded from scores |
+
+TAC counts are structural properties. Unrolling increases this fixture's static
+TAC count; neither that change nor a near-one process ratio proves a runtime
+improvement. All six original O0/O2 ratios remain recorded with their reliability
+reasons. Hardware instructions remain missing, and none of those timings is
+scored by default.
+
+The all-report demonstration contains 13 observations, 9 source identities,
+4 ordered pipeline identities, 5 complete configurations and 25 feature
+definitions. Missing combinations have no invented row. Actual comparison output:
+
+```text
+Fingerprint comparison: comparable; 20/25 usable dimensions; similarity 1.0.
+Similarity is descriptive evidence, not semantic equivalence or compiler identification.
+```
+
+That output applies both to constants-O0 self-comparison and to its explicit
+O0/O2 configuration comparison over valid structural and categorical features.
+The performance-only self-comparison instead reports
+`insufficient_evidence; 0/5 usable dimensions; similarity unavailable` and exits
+6. Strict O0/O2 comparison is `incompatible`, also exit 6. These are honest
+missing-evidence outcomes; a structural similarity of 1 does not identify a
+compiler or prove semantics.
+
+Comparison modes make the intended alignment explicit:
+
+| `--alignment` | Required agreement |
+| --- | --- |
+| `strict` (default) | Source SHA-256, complete ordered pass/version/parameter identity and complete compiler/environment/measurement configuration |
+| `configuration` | Same source/pipeline; compiler path/version and selected optimization/flags may differ while target, environment, cases and remaining settings match |
+| `program` | One observation on each side, same configuration and pipeline; source may differ |
+| `pipeline` | One observation on each side, same source/configuration; shared pass versions/parameters and comparison context must agree |
+
+Numeric dimensions use bounded symmetric relative difference
+`abs(a-b)/(abs(a)+abs(b))`, defined as zero for two zeros. Categorical dimensions
+use 0 for equality and 1 for difference. The distance is their positive-weighted
+mean; similarity is `1-distance`. The default minimum is two usable dimensions;
+`--feature-group`, `--weight FEATURE=NUMBER` and `--min-dimensions` make selection
+and weighting explicit. Reports retain per-feature contributions, coverage,
+unmatched/ambiguous observations and every exclusion. No score is produced for
+insufficient or incompatible evidence. Mixed units are never placed blindly into
+raw Euclidean distance or cosine similarity.
+
+Schema-1 `codedna.response_matrix`, `codedna.fingerprint` and
+`codedna.comparison` JSON retain versioned definitions, stable identifiers and
+complete input provenance. CSV has separate feature-row and comparison-row
+schemas with units, validity, reliability, reasons and missing cells; real zeros
+remain zero. Input/output alias protections and per-file atomic exports reuse the
+Phase 5 path policy. Phase 6 exits **0** for successful construction/comparable
+evidence, **2** for argument/file/schema errors, **6** for incompatible/insufficient
+comparison, and **130** for interruption. Saved exclusion reports retain exit 6.
+Full schemas and methodology are in [PHASE6_VALIDATION.md](docs/PHASE6_VALIDATION.md).
+Evidence covers Apple Clang on macOS arm64; O0/O2 are optimization settings of
+that toolchain. No GCC, cross-vendor identification or Linux validation is claimed.
 
 ## Current directory structure
 
@@ -634,7 +742,14 @@ CodeDNA/
 │   ├── benchmark.py
 │   ├── benchmark_statistics.py
 │   └── benchmark_storage.py
-├── fingerprint/__init__.py
+├── fingerprint/
+│   ├── __init__.py
+│   ├── models.py
+│   ├── matrix.py
+│   ├── extraction.py
+│   ├── similarity.py
+│   ├── storage.py
+│   └── cli.py
 ├── visualization/
 │   ├── __init__.py
 │   └── graph_renderer.py
@@ -645,7 +760,8 @@ CodeDNA/
 │   ├── transformations/  # 7 Phase 3 success/rejection examples
 │   ├── runtime/     # 7 full-return/equivalence/failure examples
 │   ├── benchmarks/README.md  # repeatable commands over existing C fixtures
-│   └── comparison/.gitkeep
+│   ├── observations/phase5/  # 13 authentic benchmark JSON files and provenance README
+│   └── comparison/     # documented program relationships for structural examples
 ├── tests/
 │   ├── test_setup.py
 │   ├── test_lexer.py
@@ -670,12 +786,19 @@ CodeDNA/
 │   ├── test_benchmark.py
 │   ├── test_benchmark_statistics.py
 │   ├── test_benchmark_storage.py
-│   └── test_phase5_cli.py
+│   ├── test_phase5_cli.py
+│   ├── test_fingerprint_models.py
+│   ├── test_fingerprint_matrix.py
+│   ├── test_fingerprint_extraction.py
+│   ├── test_fingerprint_similarity.py
+│   ├── test_fingerprint_storage.py
+│   └── test_phase6_cli.py
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── IMPLEMENTATION_PLAN.md
 │   ├── PHASE4_VALIDATION.md
 │   ├── PHASE5_VALIDATION.md
+│   ├── PHASE6_VALIDATION.md
 │   ├── COMPILER_DESIGN.md
 │   └── PROGRESS.md
 ├── results/.gitkeep
@@ -685,8 +808,8 @@ CodeDNA/
 └── README.md
 ```
 
-`fingerprint/matrix.py`, `fingerprint/similarity.py`, and `app.py` remain absent.
-Phase 5 measurement code is implemented and undergoing acceptance validation.
+Phase 6 matrix/extraction/comparison/storage/CLI code passed acceptance with all
+1709 tests. `app.py` remains absent; Phase 7 has not begun.
 `compiler/codegen.py` keeps pure source
 emission separate from IR records, and `compiler.ir.emit_c` retains the planned
 public interface. Shared transformation helpers/reports and explicit sequencing
@@ -727,7 +850,7 @@ without a traceback. There is no C preprocessing or line-splicing implementation
 | 3. Transformations | Constant propagation/folding and safe loop unrolling | Zayn |
 | 4. Compilation and execution | Clang runner, identical runs, errors/timeouts, equivalence gate | Pranav |
 | 5. Runtime measurement | Complete: repeated process times, honest missing hardware counts, JSON/CSV; 1384 passing tests | Pranav |
-| 6. Fingerprinting | Normalized response matrix and missing-aware comparisons | Pranav |
+| 6. Fingerprinting | Complete: sparse matrices, explicit fingerprints, interpretable comparisons; 1709 passing tests | Pranav |
 | 7. Dashboard and evaluation | Streamlit demo and AST/CFG/IR/single-run baselines | All |
 
 Complete and validate one phase before starting the next. Acceptance criteria
@@ -745,8 +868,8 @@ The frontend returns shared AST nodes; semantic analysis and TAC lowering consum
 the AST, and CFG construction consumes TAC. Implemented transformations
 return fresh ASTs and reports. Runtime consumes emitted C and returns structured
 execution/measurement records. Fingerprinting consumes measurements with explicit
-units, provenance, and missing values. These are design contracts, not existing
-APIs beyond the accepted Phase 1–5 pipeline.
+units, provenance, and missing values. Phase 1–6 APIs are implemented and accepted.
+Dashboard APIs remain planned.
 Details: [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Development rules
@@ -763,12 +886,12 @@ Benchmark variants with the same compiler flags, inputs, and environment. Verify
 observable results before accepting measurements. Keep raw data and metadata;
 never invent timing values, instruction counts, or similarity scores.
 
-## Current gate: Phase 5 validation
+## Current gate: Phase 6 accepted — stop
 
-Actual serial O0/O2 baselines are recorded. Complete the final serial regression
-gate before accepting Phase 5. The current task stops at that gate. Response matrices,
-fingerprint vectors/scores and dashboards have not begun; no hardware-counter
-backend is claimed.
+The complete suite passed 1709 tests, including all 1384 prior cases. Genuine
+report-derived matrices/fingerprints/comparisons and fourteen JSON/CSV pairs were
+inspected. This task stops here. The dashboard, machine-learning classifiers, extra compiler
+vendors and hardware-counter backends have not been implemented.
 
 ## References
 

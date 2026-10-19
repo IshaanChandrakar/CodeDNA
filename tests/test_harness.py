@@ -225,7 +225,8 @@ def clang_runner(request):
 
     # Harness/protocol tests are independent of the optional sanitizer backend;
     # sanitizer behavior is tested by the compiler/equivalence integration suite.
-    with CompilerRunner(CompileConfig(optimization=request.param, sanitize=False)) as runner:
+    # Give functional observations room for macOS cold executable startup.
+    with CompilerRunner(CompileConfig(optimization=request.param, sanitize=False, execution_timeout=10.0)) as runner:
         assert runner.compiler_info.status == "available", runner.compiler_info
         yield runner
 

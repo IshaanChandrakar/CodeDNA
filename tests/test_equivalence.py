@@ -30,8 +30,11 @@ def fixture(name):
     return (EXAMPLES / name).read_text(encoding="utf-8")
 
 
-def config(optimization="O0", **changes):
-    return CompileConfig(compiler=CLANG or "clang", optimization=optimization, **changes)
+def config(optimization="O0", *, execution_timeout=10.0, **changes):
+    # Functional comparisons assert observations, not cold-start latency.
+    # Explicit watchdog cases below retain their three-second deadlines.
+    return CompileConfig(compiler=CLANG or "clang", optimization=optimization,
+                         execution_timeout=execution_timeout, **changes)
 
 
 def assert_observed(report, expected):

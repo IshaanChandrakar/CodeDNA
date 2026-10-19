@@ -1,0 +1,312 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "b74fd89fbf154d5db7772f1f3ee8a749",
+  "analysis": {
+    "outcome": "timeout",
+    "explanation": "At least one execution exceeded its configured timeout.",
+    "comparison_kind": "transformation_pipeline",
+    "source": {
+      "name": "examples/runtime/timeout.c",
+      "sha256": "16ad70f08159d43835238df94157f49952e88502d15a5949dcfeb8f4df879fed"
+    },
+    "comparison_source": null,
+    "sequence": [
+      "constants"
+    ],
+    "transformation_reports": [
+      {
+        "name": "constant_propagation_folding",
+        "version": "1",
+        "status": "applied",
+        "parameters": {},
+        "statistics": {
+          "expressions_folded": 1,
+          "references_propagated": 0,
+          "loops_unrolled": 0,
+          "iterations_expanded": 0,
+          "changed_nodes": 1
+        },
+        "decisions": []
+      }
+    ],
+    "accepted_transformation": true,
+    "origins": {
+      "n0": "n0",
+      "n1": "n1",
+      "n10": "n10",
+      "n11": "n11",
+      "n12": "n12",
+      "n13": "n13",
+      "n16": "n16",
+      "n17": "n17",
+      "n18": "n18",
+      "n19": "n19",
+      "n2": "n2",
+      "n20": "n20",
+      "n3": "n3",
+      "n4": "n4",
+      "n5": "n5",
+      "n6": "n6",
+      "n7": "n7",
+      "n8": "n8",
+      "n9": "n9"
+    },
+    "settings": {
+      "compiler": "clang",
+      "standard": "c11",
+      "optimization": "O0",
+      "flags": [
+        "-std=c11",
+        "-O0",
+        "-fsanitize=undefined",
+        "-fno-sanitize-recover=all"
+      ],
+      "compile_timeout_seconds": 10.0,
+      "execution_timeout_seconds": 3.0,
+      "sanitizer_requested": true,
+      "max_output_bytes": 65536,
+      "memory_limit_mb": null,
+      "max_unroll_iterations": 32,
+      "target": "CHAR_BIT=8, sizeof(int)=4, INT_MIN=-2147483648, INT_MAX=2147483647",
+      "observation_protocol": 1,
+      "case": {
+        "stdin": "",
+        "arguments": [],
+        "environment": {
+          "LC_ALL": "C",
+          "LANG": "C",
+          "TZ": "UTC",
+          "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=0:exitcode=86"
+        }
+      }
+    },
+    "original": {
+      "canonical_source": "int main(void) {\n    int i = (0);\n    for (i = (0); (1); i = ((i) + (0))) {\n        ;\n    }\n    return ((1) + (2));\n}\n",
+      "source_sha256": "16ad70f08159d43835238df94157f49952e88502d15a5949dcfeb8f4df879fed",
+      "compilation": {
+        "status": "success",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null,
+        "harness_sha256": "ab9b83b7317b1ceb8c3262ee4df64b52b9465c1db5f038ee9265233ddeb56b21"
+      },
+      "execution": {
+        "status": "timeout",
+        "process_returncode": -9,
+        "signal": 9,
+        "return_value": null,
+        "stdout": "",
+        "stderr": "",
+        "detail": "Execution timed out; its process group was terminated"
+      }
+    },
+    "transformed": {
+      "canonical_source": "int main(void) {\n    int i = (0);\n    for (i = (0); (1); i = ((i) + (0))) {\n        ;\n    }\n    return (3);\n}\n",
+      "source_sha256": "d18f75a4612d6541af93dfdd72702e930e6190cb20f291a2386061be273c7eb7",
+      "compilation": {
+        "status": "success",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null,
+        "harness_sha256": "bbabf9d251a095bf4759dfd88db79bce97566742f136a7a07b5c4f62d213725b"
+      },
+      "execution": {
+        "status": "timeout",
+        "process_returncode": -9,
+        "signal": 9,
+        "return_value": null,
+        "stdout": "",
+        "stderr": "",
+        "detail": "Execution timed out; its process group was terminated"
+      }
+    },
+    "capability": {
+      "canonical_source": "int main(void) {\n    return (0);\n}\n",
+      "source_sha256": "65d2fad425e300ae19bd229a513aa7564086a7f0feb9405f806c70b2366ad59a",
+      "compilation": {
+        "status": "success",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null,
+        "harness_sha256": "d450a5bc4efd9c28b3d9aa41d1a5279552398c01acfcf8e27454c9a275c5304e"
+      },
+      "execution": {
+        "status": "success",
+        "process_returncode": 0,
+        "signal": null,
+        "return_value": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null
+      }
+    }
+  },
+  "environment_metadata": {
+    "compiler": {
+      "status": "available",
+      "path": "/usr/bin/clang",
+      "version": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+      "stdout": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin\n",
+      "stderr": "",
+      "returncode": 0,
+      "detail": null
+    },
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python": "3.14.5 (main, May 10 2026, 10:21:34) [Clang 21.0.0 (clang-2100.0.123.102)]",
+    "workspace": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji",
+    "artifacts": {
+      "original": {
+        "compile_command": [
+          "/usr/bin/clang",
+          "-std=c11",
+          "-O0",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0003/program.c",
+          "-o",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0003/program"
+        ],
+        "artifact_path": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0003/program",
+        "execution_command": [
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0003/program"
+        ]
+      },
+      "transformed": {
+        "compile_command": [
+          "/usr/bin/clang",
+          "-std=c11",
+          "-O0",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0004/program.c",
+          "-o",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0004/program"
+        ],
+        "artifact_path": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0004/program",
+        "execution_command": [
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0004/program"
+        ]
+      },
+      "capability": {
+        "compile_command": [
+          "/usr/bin/clang",
+          "-std=c11",
+          "-O0",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0001/program.c",
+          "-o",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0001/program"
+        ],
+        "artifact_path": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0001/program",
+        "execution_command": [
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-sgfaz0ji/build-0001/program"
+        ]
+      }
+    },
+    "artifact_lifetime": "Temporary artifacts were removed when the runner context closed.",
+    "clock": {
+      "name": "perf_counter_ns",
+      "implementation": "mach_absolute_time()",
+      "monotonic": true,
+      "adjustable": false,
+      "reported_resolution_seconds": 4.166666666666666e-08
+    }
+  },
+  "benchmark": {
+    "status": "timeout",
+    "explanation": "At least one execution exceeded its configured timeout.",
+    "settings": {
+      "warmups_per_variant": 5,
+      "measurements_per_variant": 30,
+      "order": "alternating_pairs",
+      "order_definition": "Round 0: original/transformed; round 1: transformed/original; repeat independently per phase.",
+      "measurement_scope": "end_to_end_process_execution",
+      "duration_unit": "ns",
+      "timing_definition": "perf_counter_ns immediately before Popen through process reap, process-group cleanup and bounded capture-thread completion. Includes process creation/startup, sanitizer, computation, C result-file write, capture and runner supervision. Excludes compilation, run-directory/input preparation, Python capture decoding and observation JSON parsing.",
+      "clock_backend": "time.perf_counter_ns",
+      "warmups_timed": false,
+      "compilation_timed": false
+    },
+    "samples": [],
+    "groups": {
+      "original": {
+        "expected_samples": 30,
+        "attempted_samples": 0,
+        "successful_samples": 0,
+        "summary": {
+          "status": "unavailable",
+          "count": 0,
+          "median_ns": null,
+          "mean_ns": null,
+          "min_ns": null,
+          "max_ns": null,
+          "stdev_ns": null,
+          "q1_ns": null,
+          "q3_ns": null,
+          "iqr_ns": null,
+          "coefficient_of_variation": null,
+          "issues": [
+            "no_samples"
+          ]
+        }
+      },
+      "transformed": {
+        "expected_samples": 30,
+        "attempted_samples": 0,
+        "successful_samples": 0,
+        "summary": {
+          "status": "unavailable",
+          "count": 0,
+          "median_ns": null,
+          "mean_ns": null,
+          "min_ns": null,
+          "max_ns": null,
+          "stdev_ns": null,
+          "q1_ns": null,
+          "q3_ns": null,
+          "iqr_ns": null,
+          "coefficient_of_variation": null,
+          "issues": [
+            "no_samples"
+          ]
+        }
+      }
+    },
+    "comparison": {
+      "status": "unavailable",
+      "speedup": null,
+      "percentage_change": null,
+      "issues": [
+        "process_startup_scope",
+        "invalid_summary"
+      ]
+    },
+    "metrics": {
+      "hardware_instructions": {
+        "value": null,
+        "unit": "instructions",
+        "scope": "executed_hardware_instructions",
+        "backend": null,
+        "status": "unavailable",
+        "reason": "No reliable hardware-counter backend is implemented."
+      }
+    },
+    "limitations": [
+      "Durations include process startup, sanitizer/harness and runner overhead; computation is not isolated.",
+      "No overhead correction or calibration is applied; short fixtures can be dominated by startup.",
+      "Nanosecond units describe clock readings, not nanosecond measurement accuracy.",
+      "Ratios describe observed process medians, not algorithmic speedups or statistical significance.",
+      "IQR/CV reliability flags are descriptive heuristics, not a hypothesis test or confidence interval.",
+      "An optimizing compiler may already perform the same source transformations, especially at O2.",
+      "Background load, scheduling, filesystem/cache state, thermal state and execution order affect samples.",
+      "Inherited environment is consistent within the comparison but is not fully serialized.",
+      "Execution uses trusted local fixtures and resource limits, not filesystem/network isolation.",
+      "No reliable hardware performance-counter backend is implemented; hardware instructions are unavailable."
+    ]
+  }
+}

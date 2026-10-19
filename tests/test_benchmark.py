@@ -353,7 +353,9 @@ def test_invalid_benchmark_identifiers_are_rejected_before_preparation(monkeypat
         benchmark("int main(){return 1;}", benchmark_id=identifier)
 
 
-def integration_config(optimization="O0", *, sanitize=True, execution_timeout=3):
+def integration_config(optimization="O0", *, sanitize=True, execution_timeout=10):
+    # Functional observations need room for macOS cold executable startup;
+    # these tests do not establish a three-second launch SLA.
     return BenchmarkConfig(
         compile_config=CompileConfig(compiler=CLANG or "clang", optimization=optimization, sanitize=sanitize, execution_timeout=execution_timeout),
         warmups=1, repetitions=3,
@@ -450,7 +452,9 @@ def test_validation_and_measurement_reuse_the_same_live_artifacts_without_recomp
     ((ROOT / "examples/runtime/timeout.c").read_text(), ("constants",), "timeout"),
 ])
 def test_real_unaccepted_or_unsafe_comparisons_have_no_timing_samples(source, sequence, status):
-    report = benchmark(source, sequence, config=integration_config(), benchmark_id="invalid-real-comparison")
+    # Preserve the intentional watchdog case's original deadline.
+    config = integration_config(execution_timeout=3 if status == "timeout" else 10)
+    report = benchmark(source, sequence, config=config, benchmark_id="invalid-real-comparison")
     assert report.validation.outcome == status and report.status == status
     assert report.samples == ()
     assert_no_comparison(report)
@@ -503,7 +507,7 @@ def test_real_compiler_diagnostic_failure_blocks_timing_and_retains_diagnostics(
 @requires_clang
 @pytest.mark.integration
 def test_repeated_real_benchmarks_keep_deterministic_analysis_separate_from_timing_data():
-    config = BenchmarkConfig(compile_config=CompileConfig(compiler=CLANG, execution_timeout=3), warmups=0, repetitions=1)
+    config = BenchmarkConfig(compile_config=CompileConfig(compiler=CLANG, execution_timeout=10), warmups=0, repetitions=1)
     first = benchmark("int main(){return 2+3;}", config=config, source_name="stable.c", benchmark_id="stable")
     second = benchmark("int main(){return 2+3;}", config=config, source_name="stable.c", benchmark_id="stable")
     assert first.status == second.status == "completed"

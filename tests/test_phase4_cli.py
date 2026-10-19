@@ -64,7 +64,7 @@ def test_compile_reports_actual_clang_success_without_executing_or_retaining_a_b
 ])
 def test_run_displays_full_signed_return_separately_from_wrapper_process_status(tmp_path, optimization, body, expected):
     source = write_source(tmp_path, body)
-    data = report_from(cli("--run", "--opt", optimization, source))
+    data = report_from(cli("--run", "--execution-timeout", "10", "--opt", optimization, source))
     assert data["result"]["outcome"] == "executed"
     observed = data["result"]["original"]["execution"]
     assert observed["status"] == "success"
@@ -77,7 +77,7 @@ def test_run_displays_full_signed_return_separately_from_wrapper_process_status(
 @pytest.mark.integration
 @requires_clang
 def test_equivalence_defaults_to_constants_and_reports_real_observed_values():
-    data = report_from(cli("--equiv", EXAMPLES / "constants_return257.c"))
+    data = report_from(cli("--equiv", "--execution-timeout", "10", EXAMPLES / "constants_return257.c"))
     result = data["result"]
     assert result["outcome"] == "observed_equivalent"
     assert result["sequence"] == ["constants"]
@@ -92,7 +92,7 @@ def test_equivalence_defaults_to_constants_and_reports_real_observed_values():
 @requires_clang
 def test_runtime_keeps_explicit_transformation_order_and_configured_unroll_limit():
     flags = ("--transform", "constants", "--transform", "unroll", "--transform", "constants")
-    data = report_from(cli("--equiv", *flags, "--max-unroll", "4", "--opt", "O2",
+    data = report_from(cli("--equiv", "--execution-timeout", "10", *flags, "--max-unroll", "4", "--opt", "O2",
                            ROOT / "examples" / "transformations" / "combined.c"))
     result = data["result"]
     assert result["outcome"] == "observed_equivalent"
@@ -106,7 +106,7 @@ def test_runtime_keeps_explicit_transformation_order_and_configured_unroll_limit
 @pytest.mark.integration
 @requires_clang
 def test_against_detects_one_versus_257_instead_of_comparing_low_byte_exit_codes():
-    data = report_from(cli("--equiv", "--against", EXAMPLES / "mismatch_257.c",
+    data = report_from(cli("--equiv", "--execution-timeout", "10", "--against", EXAMPLES / "mismatch_257.c",
                            EXAMPLES / "mismatch_one.c"), expected_exit=5)
     result = data["result"]
     assert result["outcome"] == "different_behavior"
@@ -121,7 +121,7 @@ def test_against_detects_one_versus_257_instead_of_comparing_low_byte_exit_codes
 @pytest.mark.integration
 @requires_clang
 def test_no_applied_transformation_is_not_reported_as_validated_optimization():
-    data = report_from(cli("--equiv", "--transform", "unroll", "examples/basic/minimal.c"), expected_exit=6)
+    data = report_from(cli("--equiv", "--execution-timeout", "10", "--transform", "unroll", "examples/basic/minimal.c"), expected_exit=6)
     result = data["result"]
     assert result["outcome"] == "no_transformation"
     assert result["accepted_transformation"] is False
@@ -134,7 +134,7 @@ def test_no_applied_transformation_is_not_reported_as_validated_optimization():
 @requires_clang
 def test_rejected_unrolling_remains_explicit_without_claiming_optimization_equivalence():
     source = ROOT / "examples" / "transformations" / "rejected_induction.c"
-    data = report_from(cli("--equiv", "--transform", "unroll", source), expected_exit=6)
+    data = report_from(cli("--equiv", "--execution-timeout", "10", "--transform", "unroll", source), expected_exit=6)
     result = data["result"]
     assert result["outcome"] == "no_transformation"
     assert result["accepted_transformation"] is False
@@ -156,7 +156,7 @@ def test_nontermination_reports_timeout_without_a_return_observation():
 @pytest.mark.integration
 @requires_clang
 def test_dynamic_undefined_arithmetic_reports_ubsan_failure_instead_of_a_value():
-    data = report_from(cli("--run", "--sanitize", EXAMPLES / "dynamic_divzero.c"), expected_exit=4)
+    data = report_from(cli("--run", "--execution-timeout", "10", "--sanitize", EXAMPLES / "dynamic_divzero.c"), expected_exit=4)
     result = data["result"]
     assert result["outcome"] == "undefined_behavior"
     execution = result["original"]["execution"]
@@ -167,7 +167,7 @@ def test_dynamic_undefined_arithmetic_reports_ubsan_failure_instead_of_a_value()
 @pytest.mark.integration
 @requires_clang
 def test_no_sanitize_is_explicitly_recorded_for_execution_only():
-    data = report_from(cli("--run", "--no-sanitize", EXAMPLES / "negative_math.c"))
+    data = report_from(cli("--run", "--execution-timeout", "10", "--no-sanitize", EXAMPLES / "negative_math.c"))
     assert data["result"]["outcome"] == "executed"
     assert data["result"]["settings"]["sanitizer_requested"] is False
     assert "-fsanitize=undefined" not in data["result"]["settings"]["flags"]
@@ -181,7 +181,7 @@ def test_saved_mismatch_report_retains_mismatch_exit_status_and_preserves_inputs
     other = write_source(tmp_path, "return 257;", "other.c")
     output = tmp_path / "reports" / "comparison.json"
     before = (original.read_bytes(), other.read_bytes())
-    completed = cli("--equiv", "--against", other, "--output", output, original, cwd=tmp_path)
+    completed = cli("--equiv", "--execution-timeout", "10", "--against", other, "--output", output, original, cwd=tmp_path)
     assert completed.returncode == 5 and completed.stderr == ""
     assert completed.stdout == f"Saved {output}\n"
     assert json.loads(output.read_text())["result"]["outcome"] == "different_behavior"

@@ -289,7 +289,7 @@ def test_ordinary_and_timed_methods_delegate_once_to_the_same_execution_path(tmp
 @pytest.mark.parametrize("optimization", ["O0", "O2"])
 def test_real_timed_clang_preserves_full_return_and_phase4_result_fields(optimization):
     _require_clang()
-    with CompilerRunner(CompileConfig(optimization=optimization)) as runner:
+    with CompilerRunner(CompileConfig(optimization=optimization, execution_timeout=10.0)) as runner:
         artifact = _harness(runner, "int main(){int x=0;for(int i=0;i<4;i=i+1)x=x+i;return x+257;}")
         ordinary = runner.execute(artifact)
         timed = runner.timed_execute(artifact)
@@ -313,7 +313,7 @@ def test_compilation_and_plain_execution_do_not_read_the_performance_clock(monke
         return next(timestamps)
 
     monkeypatch.setattr(runner_module.time, "perf_counter_ns", clock)
-    with CompilerRunner() as runner:
+    with CompilerRunner(CompileConfig(execution_timeout=10.0)) as runner:
         artifact = _harness(runner)
         assert calls == []
         assert runner.execute(artifact).return_value == 257
@@ -328,7 +328,7 @@ def test_duration_stops_before_python_observation_parsing(monkeypatch):
     _require_clang()
     from runtime import harness as harness_module
 
-    with CompilerRunner() as runner:
+    with CompilerRunner(CompileConfig(execution_timeout=10.0)) as runner:
         artifact = _harness(runner)
         calls = []
         timestamps = iter((2_000, 2_700))
@@ -364,7 +364,7 @@ def test_started_timeout_retains_diagnostic_duration_and_no_return_value():
 @pytest.mark.integration
 def test_started_protocol_failure_retains_duration_without_fabricating_observation():
     _require_clang()
-    with CompilerRunner() as runner:
+    with CompilerRunner(CompileConfig(execution_timeout=10.0)) as runner:
         artifact = _compiled(runner, "int main(void){return 0;}", observation_file="missing.json")
         timed = runner.timed_execute(artifact)
         assert timed.execution.status == "protocol_error"
@@ -402,7 +402,9 @@ def test_prelaunch_and_launch_failures_have_no_duration(tmp_path, monkeypatch, f
 ])
 def test_started_process_failures_retain_the_existing_classification(source, expected):
     _require_clang()
-    with CompilerRunner() as runner:
+    # Assert the program's signal/exit/UB outcome independently of cold launch
+    # latency; the separate started-timeout case retains its 0.1-second budget.
+    with CompilerRunner(CompileConfig(execution_timeout=10.0)) as runner:
         timed = runner.timed_execute(_compiled(runner, source))
         assert timed.execution.status == expected
         assert timed.execution.return_value is None
@@ -414,7 +416,7 @@ def test_started_process_failures_retain_the_existing_classification(source, exp
 @pytest.mark.integration
 def test_timed_execution_keeps_existing_output_limits():
     _require_clang()
-    with CompilerRunner(CompileConfig(max_output_bytes=1024)) as runner:
+    with CompilerRunner(CompileConfig(max_output_bytes=1024, execution_timeout=10.0)) as runner:
         artifact = _compiled(runner, '#include <stdio.h>\nint main(void){for(int i=0;i<20000;i++)putchar(\'x\');return 0;}')
         timed = runner.timed_execute(artifact)
         assert timed.execution.status == "output_limit"

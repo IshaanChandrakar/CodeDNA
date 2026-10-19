@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "b13efa963839461f959e5d9ec5e6979b",
+  "analysis": {
+    "outcome": "no_transformation",
+    "explanation": "No selected pass applied an accepted change; matching unchanged executions do not validate a transformation.",
+    "comparison_kind": "transformation_pipeline",
+    "source": {
+      "name": "/Users/pranav/Documents/CodeDNA/examples/transformations/rejected_declaration.c",
+      "sha256": "7fdb8ebfe21f1385f2d9e45cbd7c568c0a574a977e734cef60aeaef7640be541"
+    },
+    "comparison_source": null,
+    "sequence": [
+      "unroll"
+    ],
+    "transformation_reports": [
+      {
+        "name": "loop_unrolling",
+        "version": "1",
+        "status": "rejected",
+        "parameters": {
+          "max_iterations": 32
+        },
+        "statistics": {
+          "expressions_folded": 0,
+          "references_propagated": 0,
+          "loops_unrolled": 0,
+          "iterations_expanded": 0,
+          "changed_nodes": 0
+        },
+        "decisions": [
+          {
+            "node_id": "n20",
+            "code": "DECLARATION_IN_BODY",
+            "message": "Loop-body declarations cannot be safely duplicated under the unique-name scope rules",
+            "status": "rejected",
+            "span": {
+              "start_line": 3,
+              "start_column": 5,
+              "end_line": 6,
+              "end_column": 6,
+              "start_offset": 40,
+              "end_offset": 135
+            }
+          }
+        ]
+      }
+    ],
+    "accepted_transformation": false,
+    "origins": {
+      "n0": "n0",
+      "n1": "n1",
+      "n10": "n10",
+      "n11": "n11",
+      "n12": "n12",
+      "n13": "n13",
+      "n14": "n14",
+      "n15": "n15",
+      "n16": "n16",
+      "n17": "n17",
+      "n18": "n18",
+      "n19": "n19",
+      "n2": "n2",
+      "n20": "n20",
+      "n21": "n21",
+      "n22": "n22",
+      "n23": "n23",
+      "n24": "n24",
+      "n25": "n25",
+      "n3": "n3",
+      "n4": "n4",
+      "n5": "n5",
+      "n6": "n6",
+      "n7": "n7",
+      "n8": "n8",
+      "n9": "n9"
+    },
+    "settings": {
+      "compiler": "clang",
+      "standard": "c11",
+      "optimization": "O0",
+      "flags": [
+        "-std=c11",
+        "-O0",
+        "-fsanitize=undefined",
+        "-fno-sanitize-recover=all"
+      ],
+      "compile_timeout_seconds": 10.0,
+      "execution_timeout_seconds": 10.0,
+      "sanitizer_requested": true,
+      "max_output_bytes": 65536,
+      "memory_limit_mb": null,
+      "max_unroll_iterations": 32,
+      "target": "CHAR_BIT=8, sizeof(int)=4, INT_MIN=-2147483648, INT_MAX=2147483647",
+      "observation_protocol": 1,
+      "case": {
+        "stdin": "",
+        "arguments": [],
+        "environment": {
+          "LC_ALL": "C",
+          "LANG": "C",
+          "TZ": "UTC",
+          "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=0:exitcode=86"
+        }
+      }
+    },
+    "original": {
+      "canonical_source": "int main(void) {\n    int total = (0);\n    for (int i = (0); ((i) < (3)); i = ((i) + (1))) {\n        int value = (i);\n        total = ((total) + (value));\n    }\n    return (total);\n}\n",
+      "source_sha256": "7fdb8ebfe21f1385f2d9e45cbd7c568c0a574a977e734cef60aeaef7640be541",
+      "compilation": {
+        "status": "success",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null,
+        "harness_sha256": "fc983afadd2cba1900eb9aa63add904d5fd6d075630954319d34a5645720b111"
+      },
+      "execution": {
+        "status": "success",
+        "process_returncode": 0,
+        "signal": null,
+        "return_value": 3,
+        "stdout": "",
+        "stderr": "",
+        "detail": null
+      }
+    },
+    "transformed": {
+      "canonical_source": "int main(void) {\n    int total = (0);\n    for (int i = (0); ((i) < (3)); i = ((i) + (1))) {\n        int value = (i);\n        total = ((total) + (value));\n    }\n    return (total);\n}\n",
+      "source_sha256": "73a784d54370e79707fe0b5b0b3e8181834c9155d0b816c00cb4d5b91e944ec0",
+      "compilation": {
+        "status": "success",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null,
+        "harness_sha256": "fc983afadd2cba1900eb9aa63add904d5fd6d075630954319d34a5645720b111"
+      },
+      "execution": {
+        "status": "success",
+        "process_returncode": 0,
+        "signal": null,
+        "return_value": 3,
+        "stdout": "",
+        "stderr": "",
+        "detail": null
+      }
+    },
+    "capability": {
+      "canonical_source": "int main(void) {\n    return (0);\n}\n",
+      "source_sha256": "65d2fad425e300ae19bd229a513aa7564086a7f0feb9405f806c70b2366ad59a",
+      "compilation": {
+        "status": "success",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null,
+        "harness_sha256": "d450a5bc4efd9c28b3d9aa41d1a5279552398c01acfcf8e27454c9a275c5304e"
+      },
+      "execution": {
+        "status": "success",
+        "process_returncode": 0,
+        "signal": null,
+        "return_value": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null
+      }
+    }
+  },
+  "environment_metadata": {
+    "compiler": {
+      "status": "available",
+      "path": "/usr/bin/clang",
+      "version": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+      "stdout": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin\n",
+      "stderr": "",
+      "returncode": 0,
+      "detail": null
+    },
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python": "3.14.5 (main, May 10 2026, 10:21:34) [Clang 21.0.0 (clang-2100.0.123.102)]",
+    "workspace": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w",
+    "artifacts": {
+      "original": {
+        "compile_command": [
+          "/usr/bin/clang",
+          "-std=c11",
+          "-O0",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0003/program.c",
+          "-o",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0003/program"
+        ],
+        "artifact_path": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0003/program",
+        "execution_command": [
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0003/program"
+        ]
+      },
+      "transformed": {
+        "compile_command": [
+          "/usr/bin/clang",
+          "-std=c11",
+          "-O0",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0004/program.c",
+          "-o",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0004/program"
+        ],
+        "artifact_path": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0004/program",
+        "execution_command": [
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0004/program"
+        ]
+      },
+      "capability": {
+        "compile_command": [
+          "/usr/bin/clang",
+          "-std=c11",
+          "-O0",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0001/program.c",
+          "-o",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0001/program"
+        ],
+        "artifact_path": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0001/program",
+        "execution_command": [
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-2vwfof3w/build-0001/program"
+        ]
+      }
+    },
+    "artifact_lifetime": "Temporary artifacts were removed when the runner context closed.",
+    "clock": {
+      "name": "perf_counter_ns",
+      "implementation": "mach_absolute_time()",
+      "monotonic": true,
+      "adjustable": false,
+      "reported_resolution_seconds": 4.166666666666666e-08
+    }
+  },
+  "benchmark": {
+    "status": "no_transformation",
+    "explanation": "No selected pass applied an accepted change; matching unchanged executions do not validate a transformation.",
+    "settings": {
+      "warmups_per_variant": 5,
+      "measurements_per_variant": 30,
+      "order": "alternating_pairs",
+      "order_definition": "Round 0: original/transformed; round 1: transformed/original; repeat independently per phase.",
+      "measurement_scope": "end_to_end_process_execution",
+      "duration_unit": "ns",
+      "timing_definition": "perf_counter_ns immediately before Popen through process reap, process-group cleanup and bounded capture-thread completion. Includes process creation/startup, sanitizer, computation, C result-file write, capture and runner supervision. Excludes compilation, run-directory/input preparation, Python capture decoding and observation JSON parsing.",
+      "clock_backend": "time.perf_counter_ns",
+      "warmups_timed": false,
+      "compilation_timed": false
+    },
+    "samples": [],
+    "groups": {
+      "original": {
+        "expected_samples": 30,
+        "attempted_samples": 0,
+        "successful_samples": 0,
+        "summary": {
+          "status": "unavailable",
+          "count": 0,
+          "median_ns": null,
+          "mean_ns": null,
+          "min_ns": null,
+          "max_ns": null,
+          "stdev_ns": null,
+          "q1_ns": null,
+          "q3_ns": null,
+          "iqr_ns": null,
+          "coefficient_of_variation": null,
+          "issues": [
+            "no_samples"
+          ]
+        }
+      },
+      "transformed": {
+        "expected_samples": 30,
+        "attempted_samples": 0,
+        "successful_samples": 0,
+        "summary": {
+          "status": "unavailable",
+          "count": 0,
+          "median_ns": null,
+          "mean_ns": null,
+          "min_ns": null,
+          "max_ns": null,
+          "stdev_ns": null,
+          "q1_ns": null,
+          "q3_ns": null,
+          "iqr_ns": null,
+          "coefficient_of_variation": null,
+          "issues": [
+            "no_samples"
+          ]
+        }
+      }
+    },
+    "comparison": {
+      "status": "unavailable",
+      "speedup": null,
+      "percentage_change": null,
+      "issues": [
+        "process_startup_scope",
+        "invalid_summary"
+      ]
+    },
+    "metrics": {
+      "hardware_instructions": {
+        "value": null,
+        "unit": "instructions",
+        "scope": "executed_hardware_instructions",
+        "backend": null,
+        "status": "unavailable",
+        "reason": "No reliable hardware-counter backend is implemented."
+      }
+    },
+    "limitations": [
+      "Durations include process startup, sanitizer/harness and runner overhead; computation is not isolated.",
+      "No overhead correction or calibration is applied; short fixtures can be dominated by startup.",
+      "Nanosecond units describe clock readings, not nanosecond measurement accuracy.",
+      "Ratios describe observed process medians, not algorithmic speedups or statistical significance.",
+      "IQR/CV reliability flags are descriptive heuristics, not a hypothesis test or confidence interval.",
+      "An optimizing compiler may already perform the same source transformations, especially at O2.",
+      "Background load, scheduling, filesystem/cache state, thermal state and execution order affect samples.",
+      "Inherited environment is consistent within the comparison but is not fully serialized.",
+      "Execution uses trusted local fixtures and resource limits, not filesystem/network isolation.",
+      "No reliable hardware performance-counter backend is implemented; hardware instructions are unavailable."
+    ]
+  }
+}

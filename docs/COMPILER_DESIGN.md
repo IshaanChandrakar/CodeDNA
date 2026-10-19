@@ -3,7 +3,8 @@
 Status: Phases 1–4 grammar, AST, analysis, TAC/CFG, diagrams, transformations,
 C emission, Clang execution and observed equivalence implemented. Phase 5 repeated
 process measurement is implemented and accepted with 1384 passing tests.
-Updated 2026-10-17. Phases 6–7 remain pending.
+Updated 2026-10-18. Phase 6 reporting/comparison passed acceptance with 1709 tests,
+retaining all 1384 prior cases. Phase 7 remains pending.
 This document is the shared frontend/representation contract.
 
 ## Language boundary
@@ -554,5 +555,71 @@ requirement, and static TAC operations are never presented as machine counts.
 Actual serial O0/O2 baseline samples and the passing 1384-case acceptance gate
 are recorded in [PHASE5_VALIDATION.md](PHASE5_VALIDATION.md). macOS arm64 is the local execution
 platform; Linux remains unverified. Trusted local fixture execution is not a
-filesystem/network sandbox. No Phase 6 matrices/vectors/similarity scoring or
-Phase 7 dashboard has begun.
+filesystem/network sandbox. Phase 5 schemas remain unchanged in Phase 6.
+
+## Phase 6 — evidence-preserving descriptive fingerprints
+
+`fingerprint.matrix.build_matrix(reports)` imports existing schema-1 benchmark
+objects or dictionaries; it does not compile or execute C. It validates source,
+ordered pass/report, complete configuration and measurement contracts. It
+audits raw sample order/full observations/counts and recomputes Phase 5 statistics
+before timing features can be valid. Original reports survive unchanged in
+observation provenance. Invalid or unreliable observations retain their values
+and reasons; they do not contribute to numeric similarity.
+
+Rows reference exact raw-source SHA-256, ordered pipeline/version/parameters,
+and full compiler/optimization/environment/protocol identities. Sparse missing
+combinations stay absent. Deterministic SHA-256 identities and sorted axes avoid
+positional alignment errors. Exact duplicate reports are deduplicated; independent
+replicates remain separate and are never automatically averaged.
+
+Structural features sum actual committed pass counts and derive static TAC/CFG
+counts from the **saved canonical C**, reparsed through the existing frontend.
+Operations exclude `Label`; basic blocks exclude synthetic entry/exit. This
+definition matters for emitted negative literals, which reparse into unary
+operations. Static counts are source/pipeline characteristics, independent of
+Clang optimization. They are never substituted for hardware instructions.
+For a positive finite original count b and finite transformed count v>=0,
+response is `(v-b)/b`; a zero/missing baseline or no accepted pass has no response.
+An observed raw static delta of zero remains a real zero.
+
+`extract_fingerprint(matrix, configuration_id=..., ...)` selects exactly one
+configuration, optionally filtering source, pipeline and observation IDs. Its
+versioned signature separates `structural`, categorical `compiler`, and
+`performance` features. Every named feature stores units/definition, validity,
+reliability and originating report pointer/derivation. Hardware instructions
+remain missing. Known mismatched environments/target/settings cannot be silently
+mixed. Recorded metadata still cannot establish identical host load or hardware.
+
+`similarity.compare(left, right, ComparisonConfig(...))` aligns matching source,
+pipeline and full configuration by default. Explicit `configuration`, `program`
+and `pipeline` policies permit a single chosen axis to differ while retaining
+other compatibility constraints. Program/pipeline profile comparisons require
+one observation on each side. Definition/schema mismatch is incompatible;
+ambiguous replicates and missing/invalid/unreliable data are excluded with reasons.
+
+Categorical distance is 0 for equality and 1 otherwise. Numeric distance is
+`abs(a-b)/(abs(a)+abs(b))`, with zero/zero defined as zero and scaled arithmetic
+to avoid overflow. The positive finite weighted mean gives distance D, with
+descriptive similarity `1-D`. Default weights are 1, and at least two usable
+dimensions are required. Counts, coverage, exclusions and per-feature
+contributions accompany the score. This refines the original Euclidean/cosine
+sketch to a feature-aware measure appropriate to mixed units/statuses. Scores
+are neither semantic-equivalence proofs nor compiler-identification probabilities.
+
+All six historical primary median ratios remain `unreliable` and cannot enter
+scoring. Their startup/sanitizer/harness scope does not isolate computation.
+Performance-only comparison therefore has insufficient evidence. O0 and O2
+observations belong to the same Apple Clang product; identical structural
+profiles at those levels do not identify different toolchains. No GCC or Linux
+measurements are invented.
+
+Strict versioned JSON is the round-trip format; long-form CSV is a stable flat
+projection with IDs, units, missing blanks, genuine zeros and reliability/reasons.
+Output preflight protects every input and alias; sibling temporary files are
+prepared before per-file atomic replacement. The existing CLI exposes matrix,
+fingerprint, comparison, inspection and JSON/CSV export commands without changing
+Phase 1–5 modes. The full methods, exact schemas and acceptance evidence are in
+[PHASE6_VALIDATION.md](PHASE6_VALIDATION.md). The C subset, signed integer rules,
+transformation algorithms and runtime protocols remain unchanged. Phase 7 has
+not begun.

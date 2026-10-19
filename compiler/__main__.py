@@ -12,6 +12,7 @@ from compiler.ir import emit_c, format_ir, lower_ir
 from compiler.lexer import format_tokens, tokenize
 from compiler.parser import parse
 from compiler.semantic import analyze
+from fingerprint.cli import add_arguments as add_fingerprint_arguments, handle_if_requested
 from runtime.equivalence import check_equivalence, compare_sources, evaluate_source
 from runtime.models import CompileConfig
 from runtime.benchmark import benchmark, format_benchmark_summary
@@ -46,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--run", action="store_true", help="Compile/run and display a full signed integer observation as JSON")
     mode.add_argument("--equiv", action="store_true", help="Compare original/transformed executions (default pass: constants)")
     mode.add_argument("--benchmark", action="store_true", help="Validate, warm up, repeatedly measure, and save a benchmark report")
+    add_fingerprint_arguments(arguments, mode)
     arguments.add_argument(
         "--transform", action="append", choices=PASS_NAMES, default=[],
         help="Apply a pass; repeat this option to specify the exact sequence",
@@ -53,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     arguments.add_argument("--max-unroll", type=int, help="Maximum iterations per loop (default 32; allowed 0..1024)")
     arguments.add_argument("-o", "--output", type=Path, help="Write output to this file (parents created)")
     arguments.add_argument("--format", choices=("dot", "svg", "png", "pdf"), help="Graph output format; default dot")
-    arguments.add_argument("--against", type=Path, help="With --equiv or --benchmark, compare a second validated C file instead of applying passes")
+    arguments.add_argument("--against", type=Path, help="Second C source with --equiv/--benchmark, or right JSON with --compare-fingerprints")
     arguments.add_argument("--clang", help="Clang executable path or name (default clang)")
     arguments.add_argument("--opt", choices=("O0", "O2"), help="Clang optimization level (default O0)")
     arguments.add_argument("--compile-timeout", type=float, help="Compilation deadline in seconds (default 10)")
@@ -61,11 +63,16 @@ def main(argv: list[str] | None = None) -> int:
     arguments.add_argument("--sanitize", action=argparse.BooleanOptionalAction, default=None, help="Enable UBSan (default enabled); no silent fallback")
     arguments.add_argument("--warmups", type=int, help="Benchmark warm-ups per variant (default 5; 0..10000)")
     arguments.add_argument("--repetitions", type=int, help="Benchmark measured runs per variant (default 30; 1..10000)")
-    arguments.add_argument("--csv", action="store_true", help="Export benchmark raw and summary CSV beside its JSON")
+    arguments.add_argument("--csv", action="store_true", help="Export benchmark raw/summary CSV or a Phase 6 long-form CSV beside JSON")
     arguments.add_argument("--samples-csv", type=Path, help="Export benchmark raw observations to this CSV")
     arguments.add_argument("--summary-csv", type=Path, help="Export benchmark aggregate groups to this CSV")
-    arguments.add_argument("source", type=Path, help="UTF-8 C source file")
+    arguments.add_argument("source", type=Path, nargs="?", help="UTF-8 C source, or matrix/fingerprint JSON in Phase 6 modes")
     options = arguments.parse_args(argv)
+    fingerprint_result = handle_if_requested(options, arguments)
+    if fingerprint_result is not None:
+        return fingerprint_result
+    if options.source is None:
+        arguments.error("the following arguments are required: source")
     if not any((options.tokens, options.ast, options.check, options.tac, options.cfg,
                 options.ast_dot, options.cfg_dot, options.c, options.report,
                 options.compile, options.run, options.equiv, options.benchmark)):

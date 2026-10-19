@@ -1,11 +1,18 @@
 # Progress
 
-Updated: 2026-10-17 (Asia/Kolkata). Status is recorded from completed work, not
+Updated: 2026-10-19 (Asia/Kolkata). Status is recorded from completed work, not
 from the existence of a design document or an empty package.
 
 ## Current task
 
-Repository setup (M0) and Phases 1–5 (M1–M5) are complete. The existing checkout
+Runtime stability investigation is complete after inconsistent later manual
+runs. Confirmed supervision defects are corrected. Two complete serial runs
+passed **1720 tests each** (1709 prior cases plus eleven regressions), with zero
+failures/skips; final Clang/export, sensitive-repeat and cleanup checks passed.
+Historical gates below are preserved. See
+[RUNTIME_STABILITY.md](RUNTIME_STABILITY.md) for reproduction and current results.
+
+Repository setup (M0) and Phases 1–6 (M1–M6) are complete. The existing checkout
 remains on `main` with the original GitHub remote. Phase 3 began from the existing
 clean Phase 2 checkout, preserved all 530 prior test cases, and did not change Git
 configuration, create a branch, commit or push. Phase 4 passed its acceptance
@@ -13,7 +20,8 @@ gate with **1111 passing tests**, including all **811 prior tests**. Phase 5 rep
 measurement, statistics and structured exports passed their serial acceptance
 gate with **1384 passing tests**, retaining all **1111** prior cases. Actual
 serial O0/O2 baselines and independent JSON/CSV/statistical checks are recorded.
-Phases 6–7 have not begun.
+Phase 6 passed the complete serial gate with **1709 tests**, preserving all
+**1384** earlier cases and adding **325**. Phase 7 has not begun.
 
 | Setup item | Status |
 | --- | --- |
@@ -26,7 +34,7 @@ Phases 6–7 have not begun.
 
 The setup and Phase 1–4 validation logs below are historical acceptance records.
 Their statements about later phases describe the state at those gates. Current
-Phase 5 implementation and passing acceptance evidence are recorded separately.
+Phase 5 and Phase 6 implementation and passing acceptance evidence are recorded separately.
 
 ## Contributor tracking
 
@@ -34,7 +42,7 @@ Phase 5 implementation and passing acceptance evidence are recorded separately.
 | --- | --- | --- | --- |
 | Ishaan — Frontend | Phase 1 frontend; Phase 2 TAC-derived basic blocks/CFG and AST/CFG diagrams | No implementation tasks | Phase 7 frontend/graph demo integration |
 | Zayn — Transformations | Phase 2 analysis/TAC; Phase 3 transformations/reports; Phase 4 pipeline/provenance integration | No implementation tasks | Phase 7 transformation demo |
-| Pranav — Runtime/evaluation | Phase 4 runtime; Phase 5 repeated measurements, statistics, exports and serial validation; all 1111 prior cases retained | No implementation tasks | Phase 6 fingerprints; Phase 7 dashboard/evaluation |
+| Pranav — Runtime/evaluation | Phase 4 runtime; Phase 5 measurements; Phase 6 matrices/fingerprints/comparisons/exports; 1709 passing tests retaining all prior cases | No implementation tasks | Phase 7 dashboard/evaluation |
 
 Rows track progress by the team's agreed responsibility areas. They do not claim
 that named individuals have independently authored or reviewed these changes.
@@ -48,7 +56,7 @@ that named individuals have independently authored or reviewed these changes.
 | 3. Transformations | Complete | Fresh AST passes, reports/source round trips, expected-value tests; 811 passing total |
 | 4. Compilation/execution | Complete | Real Clang O0/O2 pipeline, exact full returns, mismatch/UB/failure/timeout/cleanup tests; 1111 passing total |
 | 5. Measurement | Complete | Genuine O0/O2 baselines, 360 measured primary samples, checked JSON/CSV/statistics and 1384 passing tests |
-| 6. Fingerprinting | Pending | Real response matrices/comparisons, zero/missing-value tests |
+| 6. Fingerprinting | Complete | Genuine report-derived matrices/fingerprints, explicit comparisons/exclusions, JSON/CSV and 1709 passing tests |
 | 7. Dashboard/evaluation | Pending | End-to-end demo, all four baselines, reproducible evaluation evidence |
 
 Acceptance criteria are in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
@@ -461,9 +469,49 @@ definitions and passing gate evidence are in
 - [x] Record and independently recompute actual O0/O2 baseline samples and summaries.
 - [x] Finish the final dependency/documentation checks and accept Phase 5.
 
-## Next phase — Phase 6 (not started)
+## Phase 6 implementation and acceptance — 2026-10-18
 
-Phase 5 is accepted and this task stops at its gate. Response matrices, DNA
-vectors, fingerprint classification and the dashboard remain unimplemented.
-Phases 6–7 have not begun. No commit, push, branch or Git configuration change is
-part of this task.
+Started from a clean checkout with 1384 collected historical tests. Read the
+architecture, compiler design, plan, progress and Phase 4/5 validation contracts.
+Phase 6 imports existing benchmark reports without rebuilding or rerunning C.
+Thirteen authentic Phase 5 reports are copied byte-for-byte into versioned
+example fixtures. Structural TAC counts are derived by parsing their saved
+canonical C; timing evidence retains all recorded reliability flags.
+Implemented detached versioned records, sparse matrices, configuration-isolated
+extraction, bounded mixed-feature comparison, safe JSON/CSV and additive CLI
+commands. Cross-variant validation, successful compilation/capability and raw
+sample/statistical consistency are audited before imported timings can be valid.
+Structural counts and recorded compiler statuses remain separate from timings.
+All six primary ratios remain unreliable and cannot enter scoring.
+
+| Validation | Actual result |
+| --- | --- |
+| `.venv/bin/python -m pytest -q --tb=short --showlocals` | **1709 passed, 0 failed, 0 skipped**, 296.50 seconds |
+| Historical Phase 1–5 cases | All **1384** retained; historical test modules untouched |
+| New matrix / extraction / models | **74 / 36 / 37** cases |
+| New comparison / storage / CLI | **108 / 28 / 42** cases |
+| Genuine report import | 13 authentic JSON files; 9 sources, 4 pipelines, 5 configurations, 25 definitions, 325 feature rows |
+| Self / explicit O0/O2 constants comparison | 20/25 usable dimensions, distance 0, similarity 1; all performance components excluded |
+| Performance-only / strict O0/O2 | Insufficient 0/5 and incompatible 0/0 respectively; null scores, CLI exit 6 |
+| Actual export validation | 14 JSON/CSV pairs, exact round trips/rows/markers/headers and reverse-import determinism |
+| Dependencies, whitespace, links | No broken requirements; clean whitespace; local links resolve |
+
+The complete serial suite includes genuine Clang O0/O2 integrations. Phase 6
+report commands themselves reuse existing observations and launch no compiler.
+Runtime/compiler implementation, transformation algorithms, Phase 5 schemas and
+dependencies remain unchanged. Apple Clang 21.0.0/macOS arm64 remains the genuine
+coverage; there is no GCC or Linux evidence. The 296.50-second suite duration is
+test-validation wall time, not a C performance measurement. Full algorithms,
+artifacts, commands, feature meanings and limits are in
+[PHASE6_VALIDATION.md](PHASE6_VALIDATION.md).
+
+### Phase 6 acceptance checklist
+
+- [x] Preserve source/pipeline/configuration identity and separate structural/compiler/performance evidence.
+- [x] Import all six required real O0/O2 ratios with reliability/provenance and exclude them from scoring.
+- [x] Handle rejected, failed, missing, sparse, incompatible, zero and insufficient observations honestly.
+- [x] Provide deterministic extraction, interpretable weighted comparisons and safe versioned JSON/CSV.
+- [x] Validate real CLI demonstrations, all 1384 historical tests and the complete 1709-case suite.
+- [x] Update current documentation and stop at the Phase 6 gate.
+
+Phase 7 has not begun. No commit, push, branch or Git configuration change was made.

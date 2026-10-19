@@ -22,7 +22,10 @@ from runtime.models import CompileConfig, CompiledArtifact, ExecutionCase
 def clang_runner():
     if shutil.which("clang") is None:
         pytest.skip("Real Clang integration requires a clang executable")
-    with CompilerRunner(CompileConfig(sanitize=False)) as runner:
+    # These cases test observations, not a two-second launch SLA. A fresh
+    # macOS executable was observed still in launch after 2.02 seconds before
+    # returning normally. Keep short deadlines in the explicit watchdog tests.
+    with CompilerRunner(CompileConfig(sanitize=False, execution_timeout=10.0)) as runner:
         assert runner.compiler_info.status == "available", runner.compiler_info
         yield runner
 
@@ -66,7 +69,7 @@ def test_real_harness_observes_complete_signed_integer_without_exit_status_alias
 def test_explicit_optimization_and_sanitizer_flags_compile_and_run(optimization):
     if shutil.which("clang") is None:
         pytest.skip("Real Clang integration requires a clang executable")
-    with CompilerRunner(CompileConfig(optimization=optimization)) as runner:
+    with CompilerRunner(CompileConfig(optimization=optimization, execution_timeout=10.0)) as runner:
         harness = make_harness(parse("int main(){int x=0;for(int i=0;i<4;i=i+1)x=x+i;return x+257;}"))
         compilation = runner.compile_source(harness.source, observation_file=harness.observation_file)
         assert compilation.status == "success", compilation.stderr
@@ -240,7 +243,7 @@ def test_infinite_program_is_terminated_by_execution_timeout():
 def test_execution_output_is_bounded_and_never_a_success():
     if shutil.which("clang") is None:
         pytest.skip("Real Clang integration requires a clang executable")
-    with CompilerRunner(CompileConfig(sanitize=False, max_output_bytes=1024)) as runner:
+    with CompilerRunner(CompileConfig(sanitize=False, max_output_bytes=1024, execution_timeout=10.0)) as runner:
         artifact = compiled(runner, '#include <stdio.h>\nint main(void){for(int i=0;i<20000;i++) putchar(\'x\');return 0;}')
         result = runner.execute(artifact)
         assert result.status == "output_limit"
@@ -262,14 +265,17 @@ int main(void){pid_t child=fork();if(child<0)return 5;
 if(child==0){for(;;)pause();}
 printf("%ld\\n",(long)child);fflush(stdout);
 ''' + ending + "}"
-    with CompilerRunner(CompileConfig(sanitize=False, execution_timeout=1.0)) as runner:
+    # Only the nonterminating parent exercises a one-second watchdog. Normal
+    # parent exit tests descendant cleanup independently of cold launch latency.
+    execution_timeout = 10.0 if parent_returns else 1.0
+    with CompilerRunner(CompileConfig(sanitize=False, execution_timeout=execution_timeout)) as runner:
         artifact = compiled(runner, source)
         result = runner.execute(artifact)
         assert result.status == ("success" if parent_returns else "timeout")
         child_pid = int(result.stdout.strip())
         deadline = time.monotonic() + 1
         while True:
-            state = subprocess.run(["ps", "-o", "stat=", "-p", str(child_pid)], capture_output=True, text=True, check=False).stdout.strip()
+            state = subprocess.run(["ps", "-o", "stat=", "-p", str(child_pid)], capture_output=True, text=True, timeout=2, check=False).stdout.strip()
             if not state or state.startswith("Z"):
                 break
             if time.monotonic() >= deadline:
@@ -371,7 +377,7 @@ def test_identical_sources_get_distinct_private_builds_with_equal_hashes(clang_r
 def test_real_ubsan_faults_are_undefined_behavior_instead_of_matching_results(operation):
     if shutil.which("clang") is None:
         pytest.skip("Real Clang integration requires a clang executable")
-    with CompilerRunner() as runner:
+    with CompilerRunner(CompileConfig(execution_timeout=10.0)) as runner:
         artifact = compiled(runner, "int main(void){" + operation + "}")
         result = runner.execute(artifact)
         assert result.status == "undefined_behavior", (result.status, result.stderr)
@@ -383,7 +389,7 @@ def test_real_ubsan_faults_are_undefined_behavior_instead_of_matching_results(op
 def test_context_exit_cleans_sources_executables_captures_and_observations():
     if shutil.which("clang") is None:
         pytest.skip("Real Clang integration requires a clang executable")
-    with CompilerRunner(CompileConfig(sanitize=False)) as runner:
+    with CompilerRunner(CompileConfig(sanitize=False, execution_timeout=10.0)) as runner:
         artifact = harness_artifact(runner, "int main(){return 3;}")
         assert runner.execute(artifact).return_value == 3
         root = runner.root

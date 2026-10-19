@@ -31,8 +31,10 @@ def cli(*arguments, cwd=ROOT):
 
 def benchmark_report(tmp_path, source, *arguments, expected_exit=0):
     output = tmp_path / "exports" / "benchmark.json"
+    # Functional benchmark/export assertions are independent of macOS cold
+    # launch latency. Explicit timeout cases override this budget below.
     completed = cli("--benchmark", "--warmups", "0", "--repetitions", "2",
-                    "--execution-timeout", "3", "--output", output, *arguments, source)
+                    "--execution-timeout", "10", "--output", output, *arguments, source)
     assert completed.returncode == expected_exit, completed.stderr or completed.stdout
     assert "Traceback" not in completed.stderr
     assert output.exists(), completed.stderr
@@ -128,7 +130,7 @@ def test_json_and_csv_keep_warmups_separate_from_timed_samples_and_aggregates(tm
 @requires_clang
 def test_default_output_is_saved_in_a_benchmark_identifier_directory_under_current_cwd(tmp_path):
     completed = cli("--benchmark", "--warmups", "0", "--repetitions", "1",
-                    "--execution-timeout", "3", RUNTIME / "constants_return257.c", cwd=tmp_path)
+                    "--execution-timeout", "10", RUNTIME / "constants_return257.c", cwd=tmp_path)
     assert completed.returncode == 0, completed.stderr or completed.stdout
     outputs = list((tmp_path / "results").glob("*/benchmark.json"))
     assert len(outputs) == 1

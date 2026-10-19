@@ -1,6 +1,6 @@
 # Implementation plan
 
-Updated 2026-10-17. Setup and Phases 1–5 are complete; Phases 6–7 remain pending.
+Updated 2026-10-18. Setup and Phases 1–6 are complete; Phase 7 remains pending.
 Phase numbers are acceptance gates, not calendar dates.
 Implement one phase at a time and preserve earlier working behavior.
 
@@ -16,7 +16,9 @@ Within Phase 2, shared AST semantic validation and IR lowering precede CFG
 partitioning. Phase 3 validates pure source/AST/TAC structure and independently
 expected values; Clang/process-equivalence infrastructure is implemented in
 Phase 4. Phase 5 reuses those validated binaries and the existing execution path
-for repeated measurements, without beginning fingerprint or dashboard work.
+for repeated measurements. Phase 6 imports those saved observations to build
+matrices and explicit fingerprints without rerunning measurements; dashboard
+work remains Phase 7.
 
 | Milestone | Observable outcome | Gate reviewers |
 | --- | --- | --- |
@@ -253,33 +255,81 @@ passed **1384 tests, 0 failed, 0 skipped**, including all **1111** prior cases a
 **273** new cases. Dependency, whitespace, link and JSON/CSV checks passed. Six
 O0/O2 conditions retained 360 measured samples and 60 untimed warm-ups; all ratios
 were flagged unreliable, with no algorithmic speedup claim. Linux remains
-unverified. Phases 6–7 have not begun.
+unverified. At the Phase 5 gate, Phases 6–7 had not begun; current Phase 6 work is
+recorded below.
 
-## Phase 6 — Transformation-response fingerprinting
+## Phase 6 — Transformation-response fingerprinting (complete)
 
 **Dependency:** M5. **Owner:** Pranav; all contributors review example semantics.
 
-1. Implement `fingerprint/matrix.py` with named transformation/parameter rows,
-   case/metric columns and `(variant - baseline) / baseline` normalization.
-2. Handle zero/missing/non-finite baselines and skipped passes with distinct
-   statuses; do not fill missing cells with zero.
-3. Implement Euclidean distance and cosine similarity over compatible common
-   cells, defined overlap thresholds, coverage, and zero-norm handling.
-4. Populate `examples/comparison/` with original, renamed, structurally refactored
-   and unrelated programs; document expected semantic relationships independently
-   of measured scores. Compare only aligned experiments and cases.
-5. Test normalization with transparent synthetic numeric fixtures used only for
-   unit arithmetic tests. Generate reported research fingerprints from actual
-   measured programs and retain the raw data that produced them.
+1. Import genuine Phase 5 dicts/records in `fingerprint/matrix.py`, retaining the
+   complete original report. Validate source/pass/configuration provenance and
+   audit measured samples/summaries. Reuse existing parse/analyze/TAC/CFG APIs to
+   derive structural features without compiling or executing.
+2. Build sparse source, exact ordered-pipeline, complete-configuration and
+   observation axes with stable content-derived IDs. Deduplicate exact evidence,
+   retain distinct repeated experiments, and never manufacture missing combinations.
+3. Separate deterministic transformation/TAC/CFG features, categorical compiler
+   outcomes and reliability-marked performance features. Normalize a finite
+   nonnegative variant only over a positive baseline as `(variant-baseline)/baseline`.
+   Preserve rejected/not-applicable/missing/unsafe/noisy states and actual zeros.
+4. Add versioned detached models and `extract_fingerprint` with explicit source,
+   pipeline, observation and configuration selection. Require exactly one
+   complete configuration; never silently merge O0/O2 or other settings.
+5. Implement one bounded mixed-feature measure: numeric
+   `abs(a-b)/(abs(a)+abs(b))` (zero for two zeros), categorical equality distance
+   0/1, positive-weighted mean distance, and `similarity=1-distance`. Explicit
+   strict/configuration/program/pipeline alignment controls compatibility.
+6. Score only common valid, eligible evidence. Exclude unreliable/descriptive-only
+   timing, missing values and ambiguous repeated rows, retaining all reasons and
+   original observed values. Report requested/usable dimensions, coverage and
+   contributions; default to at least two usable dimensions or return no score.
+7. Add lossless schema-1 JSON and long-form feature/comparison CSV with stable
+   IDs, units, masks, reasons and provenance. Extend the existing CLI for saved
+   report import, extraction, inspection and comparison. Protect every input and
+   output with preflight and per-file atomic export; preserve Phase 5 schemas.
+8. Retain thirteen authentic Phase 5 reports under `examples/observations/phase5/`
+   with original byte hashes. Populate the original/renamed/refactored/unrelated
+   comparison corpus with independently explained expected relationships; a
+   source-level expectation is not new measured performance or identification
+   evidence. Use transparent synthetic numbers only for unit arithmetic tests.
 
-**Acceptance:** hand-checkable normalization; schema/condition mismatches rejected;
-zero baseline and no-overlap cases return explicit unavailable results; distance
-symmetry and self-comparison where defined; real family comparisons with reported
-coverage; no equivalence/probability claim inferred merely from similar scores.
+**Refinement of the earlier metric sketch:** the current phase request requires
+appropriate categorical/numeric rules and default exclusion of noise-dominated
+timings. The actual feature schema mixes counts, signed fractional responses and
+statuses. A bounded dimensionless numeric rule plus categorical equality is one
+interpretable measure; raw Euclidean distance or cosine similarity across those
+mixed units would be poorly justified. Those earlier candidates are therefore
+not implemented, and no classifier, calibrated identity threshold or probability
+claim is introduced.
 
-**Deliverable:** working fingerprint generation and comparison. Adaptive pass
-selection is still an optional research extension, not required to claim this
-initial deterministic pipeline works.
+**Acceptance:** all 1384 Phase 1–5 cases remain passing in the complete suite;
+real saved reports produce deterministic sparse matrices and one-configuration
+fingerprints; normalized values are hand-checkable; zero/missing/failed/noisy
+observations remain explicit; incompatible definitions/configurations and
+insufficient usable evidence produce no score; comparisons expose symmetry,
+self-comparison, contributions, coverage and every exclusion; JSON/CSV round
+trips and safe exports pass; actual feature/comparison examples and limits are
+documented. No structural similarity implies semantic equivalence or compiler
+identity, and no six unreliable timing ratios become proven speedups.
+
+**Accepted (2026-10-18):** `fingerprint/models.py`, `matrix.py`,
+`extraction.py`, `similarity.py`, `storage.py`, `cli.py`, additive existing-CLI
+wiring and dedicated tests. The thirteen-report demonstration contains nine
+source identities, four pipelines, five configurations and thirteen observations
+with twenty-five definitions. Genuine constants self-comparison and explicit
+O0/O2 comparison use 20/25 dimensions with similarity 1; the performance-only
+comparison has 0/5 usable dimensions and no score. Strict O0/O2 is incompatible.
+The complete serial gate passed **1709 tests, 0 failed, 0 skipped**, retaining all
+**1384** prior cases and adding **325**. Fourteen genuine-input JSON/CSV pairs,
+determinism, reliability exclusions, dependency/whitespace and local links were
+validated. Full schemas, commands, results and interpretation are recorded in
+[PHASE6_VALIDATION.md](PHASE6_VALIDATION.md) and [PROGRESS.md](PROGRESS.md).
+Coverage is Apple Clang/macOS arm64; no GCC or Linux measurement evidence is claimed.
+
+**Deliverable:** reproducible descriptive fingerprint extraction and comparison
+with explicit compatibility/reliability limits. Adaptive pass selection remains
+an optional research extension. Phase 7 has not begun.
 
 ## Phase 7 — Dashboard and evaluation
 
@@ -312,9 +362,9 @@ enabled without an explicit execution-isolation decision.
 
 **Deliverable:** demonstration-ready CodeDNA and an honest lab evaluation.
 
-## Next phase — Phase 6 (not started)
+## Current gate — Phase 6 accepted; stop
 
-M5 is accepted; actual serial O0/O2 baselines, noise/availability limits, schemas
-and complete regression evidence are recorded. The current task stops here.
-Response matrices, DNA vectors, similarity scores
-and dashboards require later requests and have not been implemented.
+M6 passed the full regression gate and genuine matrix/fingerprint/comparison,
+timing-exclusion and export checks. This task stops at that gate. The Streamlit dashboard,
+machine-learning classifiers, additional compiler passes and cross-vendor
+identification campaigns remain outside this work.

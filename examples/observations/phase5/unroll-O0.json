@@ -1,0 +1,2033 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "f064e98a74ab4e939918233e270b48b9",
+  "analysis": {
+    "outcome": "observed_equivalent",
+    "explanation": "Full return values, stdout, stderr and normal process status match for these executions. No UBSan violation was observed. This is observed equivalence, not a formal proof.",
+    "comparison_kind": "transformation_pipeline",
+    "source": {
+      "name": "/Users/pranav/Documents/CodeDNA/examples/transformations/unroll_positive.c",
+      "sha256": "1627b6e206e81c17159263ca451f939a39941d018080a293203c98f7acf40e45"
+    },
+    "comparison_source": null,
+    "sequence": [
+      "unroll"
+    ],
+    "transformation_reports": [
+      {
+        "name": "loop_unrolling",
+        "version": "1",
+        "status": "applied",
+        "parameters": {
+          "max_iterations": 32
+        },
+        "statistics": {
+          "expressions_folded": 0,
+          "references_propagated": 0,
+          "loops_unrolled": 1,
+          "iterations_expanded": 4,
+          "changed_nodes": 1
+        },
+        "decisions": []
+      }
+    ],
+    "accepted_transformation": true,
+    "origins": {
+      "n0": "n0",
+      "n1": "n1",
+      "n2": "n2",
+      "n20": "n20",
+      "n21": "n21",
+      "n22": "n22",
+      "n23": "n23",
+      "n24": "n24",
+      "n25": "n25",
+      "n26": "n26",
+      "n27": "n27",
+      "n28": "n28",
+      "n29": "n29",
+      "n3": "n3",
+      "n4": "n4",
+      "n5": "n5",
+      "u0": "n17",
+      "u1": "n14",
+      "u10": "n13",
+      "u11": "n17",
+      "u12": "n14",
+      "u13": "n15",
+      "u14": "n16",
+      "u15": "n18",
+      "u16": "n19",
+      "u17": "n12",
+      "u18": "n9",
+      "u19": "n10",
+      "u2": "n15",
+      "u20": "n11",
+      "u21": "n13",
+      "u22": "n17",
+      "u23": "n14",
+      "u24": "n15",
+      "u25": "n16",
+      "u26": "n18",
+      "u27": "n19",
+      "u28": "n12",
+      "u29": "n9",
+      "u3": "n16",
+      "u30": "n10",
+      "u31": "n11",
+      "u32": "n13",
+      "u33": "n17",
+      "u34": "n14",
+      "u35": "n15",
+      "u36": "n16",
+      "u37": "n18",
+      "u38": "n19",
+      "u39": "n12",
+      "u4": "n18",
+      "u40": "n9",
+      "u41": "n10",
+      "u42": "n11",
+      "u43": "n13",
+      "u5": "n19",
+      "u6": "n12",
+      "u7": "n9",
+      "u8": "n10",
+      "u9": "n11"
+    },
+    "settings": {
+      "compiler": "clang",
+      "standard": "c11",
+      "optimization": "O0",
+      "flags": [
+        "-std=c11",
+        "-O0",
+        "-fsanitize=undefined",
+        "-fno-sanitize-recover=all"
+      ],
+      "compile_timeout_seconds": 10.0,
+      "execution_timeout_seconds": 10.0,
+      "sanitizer_requested": true,
+      "max_output_bytes": 65536,
+      "memory_limit_mb": null,
+      "max_unroll_iterations": 32,
+      "target": "CHAR_BIT=8, sizeof(int)=4, INT_MIN=-2147483648, INT_MAX=2147483647",
+      "observation_protocol": 1,
+      "case": {
+        "stdin": "",
+        "arguments": [],
+        "environment": {
+          "LC_ALL": "C",
+          "LANG": "C",
+          "TZ": "UTC",
+          "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=0:exitcode=86"
+        }
+      }
+    },
+    "original": {
+      "canonical_source": "int main(void) {\n    int total = (0);\n    int i;\n    for (i = (0); ((i) < (4)); i = ((i) + (1))) {\n        total = ((total) + (i));\n    }\n    return (((total) * (10)) + (i));\n}\n",
+      "source_sha256": "1627b6e206e81c17159263ca451f939a39941d018080a293203c98f7acf40e45",
+      "compilation": {
+        "status": "success",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null,
+        "harness_sha256": "58c2acbb4c9d6e5d1970192adb883eeb80de04e25efda458846bdc69ef212368"
+      },
+      "execution": {
+        "status": "success",
+        "process_returncode": 0,
+        "signal": null,
+        "return_value": 64,
+        "stdout": "",
+        "stderr": "",
+        "detail": null
+      }
+    },
+    "transformed": {
+      "canonical_source": "int main(void) {\n    int total = (0);\n    int i;\n    {\n        i = (0);\n        {\n            total = ((total) + (i));\n        }\n        i = ((i) + (1));\n        {\n            total = ((total) + (i));\n        }\n        i = ((i) + (1));\n        {\n            total = ((total) + (i));\n        }\n        i = ((i) + (1));\n        {\n            total = ((total) + (i));\n        }\n        i = ((i) + (1));\n    }\n    return (((total) * (10)) + (i));\n}\n",
+      "source_sha256": "936b3c695c6243536b68a746843c3c93ce7e53f85802e9704d12c9c07c5efa6a",
+      "compilation": {
+        "status": "success",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null,
+        "harness_sha256": "573c4c403ec090173fbe13c911f00ce10f7aa528b8a4214ecb005dd1d7027ede"
+      },
+      "execution": {
+        "status": "success",
+        "process_returncode": 0,
+        "signal": null,
+        "return_value": 64,
+        "stdout": "",
+        "stderr": "",
+        "detail": null
+      }
+    },
+    "capability": {
+      "canonical_source": "int main(void) {\n    return (0);\n}\n",
+      "source_sha256": "65d2fad425e300ae19bd229a513aa7564086a7f0feb9405f806c70b2366ad59a",
+      "compilation": {
+        "status": "success",
+        "returncode": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null,
+        "harness_sha256": "d450a5bc4efd9c28b3d9aa41d1a5279552398c01acfcf8e27454c9a275c5304e"
+      },
+      "execution": {
+        "status": "success",
+        "process_returncode": 0,
+        "signal": null,
+        "return_value": 0,
+        "stdout": "",
+        "stderr": "",
+        "detail": null
+      }
+    }
+  },
+  "environment_metadata": {
+    "compiler": {
+      "status": "available",
+      "path": "/usr/bin/clang",
+      "version": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+      "stdout": "Apple clang version 21.0.0 (clang-2100.3.34.2)\nTarget: arm64-apple-darwin25.6.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin\n",
+      "stderr": "",
+      "returncode": 0,
+      "detail": null
+    },
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "python": "3.14.5 (main, May 10 2026, 10:21:34) [Clang 21.0.0 (clang-2100.0.123.102)]",
+    "workspace": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6",
+    "artifacts": {
+      "original": {
+        "compile_command": [
+          "/usr/bin/clang",
+          "-std=c11",
+          "-O0",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program.c",
+          "-o",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+        ],
+        "artifact_path": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program",
+        "execution_command": [
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+        ]
+      },
+      "transformed": {
+        "compile_command": [
+          "/usr/bin/clang",
+          "-std=c11",
+          "-O0",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program.c",
+          "-o",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+        ],
+        "artifact_path": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program",
+        "execution_command": [
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+        ]
+      },
+      "capability": {
+        "compile_command": [
+          "/usr/bin/clang",
+          "-std=c11",
+          "-O0",
+          "-fsanitize=undefined",
+          "-fno-sanitize-recover=all",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0001/program.c",
+          "-o",
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0001/program"
+        ],
+        "artifact_path": "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0001/program",
+        "execution_command": [
+          "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0001/program"
+        ]
+      }
+    },
+    "artifact_lifetime": "Temporary artifacts were removed when the runner context closed.",
+    "clock": {
+      "name": "perf_counter_ns",
+      "implementation": "mach_absolute_time()",
+      "monotonic": true,
+      "adjustable": false,
+      "reported_resolution_seconds": 4.166666666666666e-08
+    }
+  },
+  "benchmark": {
+    "status": "completed",
+    "explanation": "All warm-up and measured executions matched the validated full observations. Ratios describe observed end-to-end process durations.",
+    "settings": {
+      "warmups_per_variant": 5,
+      "measurements_per_variant": 30,
+      "order": "alternating_pairs",
+      "order_definition": "Round 0: original/transformed; round 1: transformed/original; repeat independently per phase.",
+      "measurement_scope": "end_to_end_process_execution",
+      "duration_unit": "ns",
+      "timing_definition": "perf_counter_ns immediately before Popen through process reap, process-group cleanup and bounded capture-thread completion. Includes process creation/startup, sanitizer, computation, C result-file write, capture and runner supervision. Excludes compilation, run-directory/input preparation, Python capture decoding and observation JSON parsing.",
+      "clock_backend": "time.perf_counter_ns",
+      "warmups_timed": false,
+      "compilation_timed": false
+    },
+    "samples": [
+      {
+        "phase": "warmup",
+        "order_index": 0,
+        "round_index": 0,
+        "variant": "original",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "warmup",
+        "order_index": 1,
+        "round_index": 0,
+        "variant": "transformed",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "warmup",
+        "order_index": 2,
+        "round_index": 1,
+        "variant": "transformed",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "warmup",
+        "order_index": 3,
+        "round_index": 1,
+        "variant": "original",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "warmup",
+        "order_index": 4,
+        "round_index": 2,
+        "variant": "original",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "warmup",
+        "order_index": 5,
+        "round_index": 2,
+        "variant": "transformed",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "warmup",
+        "order_index": 6,
+        "round_index": 3,
+        "variant": "transformed",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "warmup",
+        "order_index": 7,
+        "round_index": 3,
+        "variant": "original",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "warmup",
+        "order_index": 8,
+        "round_index": 4,
+        "variant": "original",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "warmup",
+        "order_index": 9,
+        "round_index": 4,
+        "variant": "transformed",
+        "duration_ns": null,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 10,
+        "round_index": 0,
+        "variant": "original",
+        "duration_ns": 10337833,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 11,
+        "round_index": 0,
+        "variant": "transformed",
+        "duration_ns": 10342667,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 12,
+        "round_index": 1,
+        "variant": "transformed",
+        "duration_ns": 10288792,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 13,
+        "round_index": 1,
+        "variant": "original",
+        "duration_ns": 10395083,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 14,
+        "round_index": 2,
+        "variant": "original",
+        "duration_ns": 10607875,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 15,
+        "round_index": 2,
+        "variant": "transformed",
+        "duration_ns": 10717042,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 16,
+        "round_index": 3,
+        "variant": "transformed",
+        "duration_ns": 10505417,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 17,
+        "round_index": 3,
+        "variant": "original",
+        "duration_ns": 10606833,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 18,
+        "round_index": 4,
+        "variant": "original",
+        "duration_ns": 10331250,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 19,
+        "round_index": 4,
+        "variant": "transformed",
+        "duration_ns": 9820209,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 20,
+        "round_index": 5,
+        "variant": "transformed",
+        "duration_ns": 10492750,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 21,
+        "round_index": 5,
+        "variant": "original",
+        "duration_ns": 10339834,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 22,
+        "round_index": 6,
+        "variant": "original",
+        "duration_ns": 10280417,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 23,
+        "round_index": 6,
+        "variant": "transformed",
+        "duration_ns": 10456417,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 24,
+        "round_index": 7,
+        "variant": "transformed",
+        "duration_ns": 10401958,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 25,
+        "round_index": 7,
+        "variant": "original",
+        "duration_ns": 11699250,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 26,
+        "round_index": 8,
+        "variant": "original",
+        "duration_ns": 11319667,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 27,
+        "round_index": 8,
+        "variant": "transformed",
+        "duration_ns": 10828792,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 28,
+        "round_index": 9,
+        "variant": "transformed",
+        "duration_ns": 11239916,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 29,
+        "round_index": 9,
+        "variant": "original",
+        "duration_ns": 10921625,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 30,
+        "round_index": 10,
+        "variant": "original",
+        "duration_ns": 11606708,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 31,
+        "round_index": 10,
+        "variant": "transformed",
+        "duration_ns": 11158667,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 32,
+        "round_index": 11,
+        "variant": "transformed",
+        "duration_ns": 10338084,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 33,
+        "round_index": 11,
+        "variant": "original",
+        "duration_ns": 10454500,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 34,
+        "round_index": 12,
+        "variant": "original",
+        "duration_ns": 10246459,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 35,
+        "round_index": 12,
+        "variant": "transformed",
+        "duration_ns": 10283625,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 36,
+        "round_index": 13,
+        "variant": "transformed",
+        "duration_ns": 10253209,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 37,
+        "round_index": 13,
+        "variant": "original",
+        "duration_ns": 10353917,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 38,
+        "round_index": 14,
+        "variant": "original",
+        "duration_ns": 10299375,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 39,
+        "round_index": 14,
+        "variant": "transformed",
+        "duration_ns": 10384791,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 40,
+        "round_index": 15,
+        "variant": "transformed",
+        "duration_ns": 10343584,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 41,
+        "round_index": 15,
+        "variant": "original",
+        "duration_ns": 10552542,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 42,
+        "round_index": 16,
+        "variant": "original",
+        "duration_ns": 10247584,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 43,
+        "round_index": 16,
+        "variant": "transformed",
+        "duration_ns": 9825792,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 44,
+        "round_index": 17,
+        "variant": "transformed",
+        "duration_ns": 10368375,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 45,
+        "round_index": 17,
+        "variant": "original",
+        "duration_ns": 10286500,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 46,
+        "round_index": 18,
+        "variant": "original",
+        "duration_ns": 10251291,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 47,
+        "round_index": 18,
+        "variant": "transformed",
+        "duration_ns": 10480500,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 48,
+        "round_index": 19,
+        "variant": "transformed",
+        "duration_ns": 10295416,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 49,
+        "round_index": 19,
+        "variant": "original",
+        "duration_ns": 10256291,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 50,
+        "round_index": 20,
+        "variant": "original",
+        "duration_ns": 10266917,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 51,
+        "round_index": 20,
+        "variant": "transformed",
+        "duration_ns": 11036458,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 52,
+        "round_index": 21,
+        "variant": "transformed",
+        "duration_ns": 11491292,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 53,
+        "round_index": 21,
+        "variant": "original",
+        "duration_ns": 10582041,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 54,
+        "round_index": 22,
+        "variant": "original",
+        "duration_ns": 10480750,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 55,
+        "round_index": 22,
+        "variant": "transformed",
+        "duration_ns": 10337125,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 56,
+        "round_index": 23,
+        "variant": "transformed",
+        "duration_ns": 10363125,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 57,
+        "round_index": 23,
+        "variant": "original",
+        "duration_ns": 10425709,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 58,
+        "round_index": 24,
+        "variant": "original",
+        "duration_ns": 10398459,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 59,
+        "round_index": 24,
+        "variant": "transformed",
+        "duration_ns": 10199917,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 60,
+        "round_index": 25,
+        "variant": "transformed",
+        "duration_ns": 10526500,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 61,
+        "round_index": 25,
+        "variant": "original",
+        "duration_ns": 10357208,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 62,
+        "round_index": 26,
+        "variant": "original",
+        "duration_ns": 10307875,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 63,
+        "round_index": 26,
+        "variant": "transformed",
+        "duration_ns": 10341625,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 64,
+        "round_index": 27,
+        "variant": "transformed",
+        "duration_ns": 10476209,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 65,
+        "round_index": 27,
+        "variant": "original",
+        "duration_ns": 10396292,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 66,
+        "round_index": 28,
+        "variant": "original",
+        "duration_ns": 10346542,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 67,
+        "round_index": 28,
+        "variant": "transformed",
+        "duration_ns": 10416167,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 68,
+        "round_index": 29,
+        "variant": "transformed",
+        "duration_ns": 10375958,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0004/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      },
+      {
+        "phase": "measurement",
+        "order_index": 69,
+        "round_index": 29,
+        "variant": "original",
+        "duration_ns": 10536875,
+        "duration_unit": "ns",
+        "measurement_scope": "end_to_end_process_execution",
+        "execution": {
+          "status": "success",
+          "process_returncode": 0,
+          "return_value": 64,
+          "stdout": "",
+          "stderr": "",
+          "detail": null,
+          "command": [
+            "/var/folders/p7/nd9zx5n55cx_y8cz8s_dtz5c0000gn/T/codedna-cb_a0ya6/build-0003/program"
+          ],
+          "signal": null
+        },
+        "matches_expected": true,
+        "valid": true,
+        "issue": null
+      }
+    ],
+    "groups": {
+      "original": {
+        "expected_samples": 30,
+        "attempted_samples": 30,
+        "successful_samples": 30,
+        "summary": {
+          "status": "available",
+          "count": 30,
+          "median_ns": 10376145.5,
+          "mean_ns": 10516450.066666666,
+          "min_ns": 10246459,
+          "max_ns": 11699250,
+          "stdev_ns": 380502.60459781287,
+          "q1_ns": 10301500.0,
+          "q3_ns": 10548625.25,
+          "iqr_ns": 247125.25,
+          "coefficient_of_variation": 0.036181658467039954,
+          "issues": []
+        }
+      },
+      "transformed": {
+        "expected_samples": 30,
+        "attempted_samples": 30,
+        "successful_samples": 30,
+        "summary": {
+          "status": "available",
+          "count": 30,
+          "median_ns": 10380374.5,
+          "mean_ns": 10479679.3,
+          "min_ns": 9820209,
+          "max_ns": 11491292,
+          "stdev_ns": 362345.5526182393,
+          "q1_ns": 10337364.75,
+          "q3_ns": 10502250.25,
+          "iqr_ns": 164885.5,
+          "coefficient_of_variation": 0.034576015376562075,
+          "issues": []
+        }
+      }
+    },
+    "comparison": {
+      "status": "unreliable",
+      "speedup": 0.9995925965869535,
+      "percentage_change": 0.04075694582347558,
+      "issues": [
+        "process_startup_scope",
+        "iqr_overlap",
+        "dispersion_exceeds_difference"
+      ]
+    },
+    "metrics": {
+      "hardware_instructions": {
+        "value": null,
+        "unit": "instructions",
+        "scope": "executed_hardware_instructions",
+        "backend": null,
+        "status": "unavailable",
+        "reason": "No reliable hardware-counter backend is implemented."
+      }
+    },
+    "limitations": [
+      "Durations include process startup, sanitizer/harness and runner overhead; computation is not isolated.",
+      "No overhead correction or calibration is applied; short fixtures can be dominated by startup.",
+      "Nanosecond units describe clock readings, not nanosecond measurement accuracy.",
+      "Ratios describe observed process medians, not algorithmic speedups or statistical significance.",
+      "IQR/CV reliability flags are descriptive heuristics, not a hypothesis test or confidence interval.",
+      "An optimizing compiler may already perform the same source transformations, especially at O2.",
+      "Background load, scheduling, filesystem/cache state, thermal state and execution order affect samples.",
+      "Inherited environment is consistent within the comparison but is not fully serialized.",
+      "Execution uses trusted local fixtures and resource limits, not filesystem/network isolation.",
+      "No reliable hardware performance-counter backend is implemented; hardware instructions are unavailable."
+    ]
+  }
+}

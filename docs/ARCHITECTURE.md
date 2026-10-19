@@ -1,11 +1,14 @@
 # Architecture
 
-Status: Phases 1–5 accepted; Phases 6–7 remain design contracts.
-Updated 2026-10-17.
+Status: Phases 1–6 accepted; Phase 7 remains a design contract.
+Updated 2026-10-18.
 Frontend, analysis, TAC/CFG, diagrams, transformations, reports and
 pure C emission, Clang compilation, full-return execution and observed equivalence
 are operational. Repeated end-to-end process measurement is implemented; actual
 baseline evidence is recorded; the serial acceptance suite passed all 1384 cases.
+Response matrices, explicit configuration fingerprints and interpretable
+comparisons consume saved observations without recompilation. The full Phase 6
+gate passed all 1709 tests, retaining all 1384 prior cases. Phase 7 has not begun.
 
 ## Research pipeline
 
@@ -25,8 +28,9 @@ flowchart TD
     Variant --> Emit
     Emit --> Compile[Clang with identical flags]
     Compile --> Verify[Execution and observable-result validation]
-    Verify --> Measure[Repeated timing and available hardware counts]
-    Measure --> Matrix[Normalized transformation-response matrix]
+    Verify --> Measure[Repeated process timing; hardware counts unavailable]
+    Measure --> Reports[Saved Phase 5 JSON observations]
+    Reports --> Matrix[Sparse response matrix with reliability masks]
     Matrix --> Compare[Fingerprint comparison]
     AST --> Diagrams[AST visualization]
     CFG --> Diagrams
@@ -44,8 +48,8 @@ not a substitute for implementing it.
 
 ## Boundaries and ownership
 
-The Phase 1–5 signatures below are implemented and accepted. Phase 6 onward
-signatures are **planned APIs**. `compiler/diagnostics.py` shares frontend
+The Phase 1–6 signatures below are implemented and accepted. Phase 7 APIs remain
+planned. `compiler/diagnostics.py` shares frontend
 source mapping and exceptions, and `compiler/__main__.py` supplies the requested
 `python -m compiler` CLI, now extended with semantic/TAC/CFG/graph inspection.
 `compiler/semantic.py` isolates binding and dataflow analysis from typed IR and
@@ -54,7 +58,7 @@ module split avoids mixing the symbol environment with instruction construction.
 Use Python dataclasses and type annotations, explicit result records, and
 schema-versioned JSON. Do not pass PLY-specific objects between stages.
 
-| File / phase | Owner | Interface and responsibility (Phases 1–5 implemented) |
+| File / phase | Owner | Interface and responsibility (Phases 1–6 implemented) |
 | --- | --- | --- |
 | `compiler/lexer.py` / 1 | Ishaan | `tokenize(source: str) -> list[TokenRecord]`; fresh PLY lexer per source; token value and source span |
 | `compiler/parser.py` / 1 | Ishaan | `parse(source: str) -> Program`; PLY grammar, precedence, AST construction; fail with structured diagnostics |
@@ -76,8 +80,12 @@ schema-versioned JSON. Do not pass PLY-specific objects between stages.
 | `runtime/benchmark.py` / 5 | Pranav | `benchmark(source, sequence=("constants",), config=..., comparison_source=..., benchmark_id=...) -> BenchmarkReport`; full-observation gate, AB/BA schedule, failure invalidation and concise summary |
 | `runtime/benchmark_statistics.py` / 5 | Pranav | `summarize(durations)` and `compare_summaries(original, transformed)`; pure finite descriptive statistics and reliability flags |
 | `runtime/benchmark_storage.py` / 5 | Pranav | `raw_rows`, `summary_rows`, `validate_output_paths`, `save_report`; fixed CSV schemas, strict JSON and input-preserving atomic files |
-| `fingerprint/matrix.py` / 6 | Pranav | `build_matrix(report) -> ResponseMatrix`; schema alignment, normalization, and missing masks |
-| `fingerprint/similarity.py` / 6 | Pranav | `compare(left, right, config) -> SimilarityResult`; overlap coverage and defined metrics |
+| `fingerprint/models.py` / 6 | Pranav | Detached `ResponseMatrix`, `Fingerprint`, `ComparisonResult`; strict JSON, schema/feature validation, canonical content hashes and stable identifiers |
+| `fingerprint/matrix.py` / 6 | Pranav | `build_matrix(reports) -> ResponseMatrix`; validates Phase 5 dicts/records, sparse axes, deterministic structural extraction, normalization, timing audit and retained provenance |
+| `fingerprint/extraction.py` / 6 | Pranav | `extract_fingerprint(matrix, configuration_id=None, source_ids=None, pipeline_ids=None, observation_ids=None) -> Fingerprint`; exactly one complete configuration, explicit observation filters, no averaging |
+| `fingerprint/similarity.py` / 6 | Pranav | `ComparisonConfig` and `compare(left, right, config=None) -> ComparisonResult`; explicit alignment, reliability masks, bounded numeric/categorical differences, contributions and coverage |
+| `fingerprint/storage.py` / 6 | Pranav | `load_document`, `save_document`, `feature_rows`, `comparison_rows`; versioned lossless JSON, long-form CSV, protected inputs and atomic per-file replacement |
+| `fingerprint/cli.py` / 6 | Pranav | Additive `--matrix`, `--fingerprint`, `--compare-fingerprints` dispatch in the existing CLI; saved-report import, selection, inspection and exports; no compilation/execution |
 | `app.py` / 7 | All; Pranav integrates | Presentation over those APIs; no duplicate compiler or measurement logic |
 
 The emitter is a small `compiler/codegen.py` module so formatting/round-trip
@@ -319,22 +327,127 @@ live under ignored `results/<benchmark_id>/` by default. Exact schemas, math,
 commands, actual baseline samples and passing test-gate evidence are in
 [PHASE5_VALIDATION.md](PHASE5_VALIDATION.md).
 
-### Fingerprint contract
+### Response matrices and fingerprints (Phase 6 accepted)
 
-Rows are named transformations (including their parameters), columns are metric
-and execution-case identities. Baseline records are retained separately.
-For a finite positive baseline `b` and valid variant value `v`, use
-`response = (v - b) / b`. Negative responses mean a reduction. A zero, negative,
-missing or non-finite baseline gives a missing cell with a reason. Skipped
-transformations are `not_applicable`, not numerical zero. Applied passes with
-unchanged measurements can legitimately produce zero.
+Phase 6 imports the complete schema-1 Phase 5 report rather than inventing a new
+execution pipeline. `build_matrix` verifies report structure, stored source and
+pass information, and the consistency of timed samples/summaries. It reparses
+saved canonical subset C through existing semantic/TAC/CFG APIs for deterministic
+structural counts. It performs no Clang invocation or new timing. The unchanged
+original report remains in each observation's provenance.
 
-Compare only compatible schemas, pass versions/parameters, case identities,
-metric units/backends and experiment conditions. Compute distances over common
-valid cells, expose the common-cell count and coverage, and return unavailable
-when overlap is insufficient. Initial candidates are Euclidean distance and
-cosine similarity; zero-norm vectors make cosine unavailable. Thresholds are
-calibrated against held-out examples, not presented as probabilities or proofs.
+The matrix is sparse, with named top-level `sources`, `pipelines`,
+`configurations` and `observations` axes, plus `feature_definitions`. Source
+identity uses the original input SHA-256; canonical-source hashes are separate.
+Pipeline identity includes exact pass order, versions, parameters, unroll limit
+and independent-source comparison context. Configuration identity contains
+actual compiler path/version/target, flags, optimization, execution case,
+timeouts/resource settings, platform/machine/Python/clock and measurement
+protocol. It is more specific than a label such as O0. Observation IDs include
+the full imported evidence, retaining genuinely repeated experiments separately;
+identical report imports deduplicate. Missing Cartesian combinations are absent,
+not zero-filled.
+
+Schema-1 documents use kinds `codedna.response_matrix`, `codedna.fingerprint`
+and `codedna.comparison`, with feature schema `codedna.features.v1`. Definitions
+contain stable name, group, kind, unit, description and comparison rule. Every
+feature has value, validity, reliability, reasons and provenance linking its
+observation/report hash and JSON pointer or structural derivation. Exported
+dictionaries are detached from stored records. Strict JSON rejects duplicate keys,
+non-finite numbers and malformed versioned records.
+
+Feature groups remain distinct:
+
+| Group | Evidence |
+| --- | --- |
+| `structural` | Ordered pass applicability; committed folding/propagation/unrolling statistics; original/transformed static TAC and CFG counts; static deltas/responses |
+| `compiler` | Recorded compilation/execution statuses, observed-equivalence outcome and benchmark schedule outcome; these are categorical observations |
+| `performance` | Recorded process medians/ratio, normalized duration response and explicit unavailable hardware instructions, all retaining timing reliability |
+
+For a finite positive baseline `b` and finite nonnegative variant `v`, response
+is `(v-b)/b`; negative values mean a reduction. Nonpositive/missing/non-finite
+baselines give a missing feature with a reason. No applied pass makes the
+transformation response `not_applicable`; reported numeric zero counts remain
+real zeros. Applied unchanged observations can have a genuine zero response.
+Transformation signatures describe source and pipeline behavior rather than
+independent compiler-performance evidence.
+
+`extract_fingerprint` requires exactly one complete configuration after its
+explicit filters. If several remain, the caller must select a configuration ID;
+there is no silent merging across O0/O2, deadlines, sanitizer or warm-up settings.
+The authentic thirteen-report example has nine source identities, four pipeline
+identities, five configurations and thirteen observations with twenty-five
+feature definitions each. All six primary timing ratios survive unchanged with
+`unreliable` markers; they cannot contribute to quantitative similarity. Hardware
+counts remain missing. Provenance identifies one Apple Clang installation on
+macOS arm64, not a cross-vendor experiment.
+
+### Interpretable comparison
+
+The initial Euclidean/cosine sketch is refined to one explicit
+`weighted_mixed_relative_v1` measure because the implemented signature mixes
+counts, fractional responses and categorical statuses. The current request
+requires feature-specific treatment and default exclusion of noise-dominated
+timings; raw vector distances would obscure those distinctions.
+
+For usable numeric values `a,b`, difference is
+`abs(a-b)/(abs(a)+abs(b))`, defined as zero for two zeros. This bounded symmetric
+relative difference handles signs without division by zero. Categories use zero
+for equality and one for inequality. Positive finite feature weights default to
+one. Distance is `sum(weight*difference)/sum(weight)` over usable dimensions,
+with normalized per-feature contributions; similarity is `1-distance`.
+Both values lie in 0..1 and are descriptive, never equivalence probabilities.
+
+| Alignment | Compatibility and pairing |
+| --- | --- |
+| `strict` | Exact complete configuration, source hash and ordered pass identity; units/definitions must agree |
+| `configuration` | Align matching source/pipeline while allowing actual compiler path/version and optimization/flags differences; target, environment, case, measurement and remaining settings still match |
+| `program` | One observation per side, same configuration and pipeline; explicit source change |
+| `pipeline` | One observation per side, same source/configuration, consistent shared-pass versions/parameters and comparison context; explicit sequence change |
+
+Unknown schemas, incomplete compatibility evidence and conflicting definitions
+produce `incompatible` with reasons. Dimensions must be valid, present and have
+eligible reliability. `unreliable`, `descriptive_only`, unavailable, invalid and
+missing observations never score. Replicates that share an alignment key are
+explicitly ambiguous and excluded; they are not chosen or averaged. Coverage is
+usable dimensions divided by requested dimensions over the union of aligned row
+keys. Unmatched rows and all excluded features remain visible. The default
+minimum is two usable dimensions; insufficient evidence gives no score.
+
+Actual constants self-comparison and explicit O0/O2 configuration comparison
+each use 20/25 dimensions with distance 0 and similarity 1. Performance-only
+comparison uses 0/5 and yields `insufficient_evidence`. Strict O0/O2 comparison
+is incompatible. These results establish the implemented structural/categorical
+comparison and timing exclusion rules, not compiler identification or semantic
+equivalence. O0/O2 are configurations of the same compiler product.
+
+### Phase 6 persistence and CLI boundary
+
+JSON preserves definitions, axes, feature values/masks, complete reports and both
+input fingerprints in comparison provenance. Feature CSV uses one row per
+observation/feature with artifact, benchmark, source, pipeline and configuration
+IDs, kind/group/unit, value, validity, reliability, reasons and JSON provenance.
+Comparison CSV records used/excluded dimensions, both values and evidence
+markers/reasons, weights, differences/contributions, coverage and missing scores;
+excluded observations and incompatibilities have their own row types.
+Field order is fixed by `FEATURE_COLUMNS` and `COMPARISON_COLUMNS`. Missing CSV
+cells are blank, booleans lowercase and real zeros retained; nested reason and
+provenance cells are canonical JSON. Phase 5 export schemas are unchanged.
+
+All Phase 6 outputs are validated against every benchmark/matrix/fingerprint
+input, including symlink/hardlink aliases and output collisions, before creation.
+Final output symlinks/directories/special files are rejected. All temporary
+exports are prepared before atomic per-file replacement; no multi-file
+transaction or hostile-filesystem sandbox is claimed.
+
+The existing `python -m compiler` dispatches report modes before C-source checks.
+Without `--output`, stdout remains JSON; `--inspect-features` adds readable
+inspection on stderr. With output, summaries list configuration IDs and
+optimization/compiler labels, and `--csv` adds `<stem>.csv`. Wrong-mode runtime,
+transformation and graph flags are rejected. Exit 0 means a constructed document
+or comparable evidence; exit 2 means file/argument/schema error; exit 6 preserves
+an incompatible/insufficient comparison report; exit 130 means interruption.
+Full schemas and actual examples are in [PHASE6_VALIDATION.md](PHASE6_VALIDATION.md).
 
 ## Integration policy
 
@@ -345,8 +458,11 @@ used pure expected-value/round-trip tests before the Phase 4 boundary. Phase 4
 adds independent Clang execution and full observations without modifying those
 interfaces. Phase 5 borrows the same live validated executables and adds optional
 timing wrappers; ordinary Phase 4 call lifetimes and result fields remain intact.
-Its complete acceptance suite passed all 1384 cases. Response matrices and fingerprint scoring
-remain Phase 6 contracts and have not begun.
+Its complete acceptance suite passed all 1384 cases. Phase 6 adds detached report
+models, sparse matrices, single-configuration extraction and explicit mixed-feature
+comparison without changing Phase 5 reports or invoking the runtime pipeline.
+The complete Phase 6 regression gate passed all 1709 tests; the dashboard remains
+Phase 7 and has not begun.
 
 Every phase adds unit tests and any justified integration tests, updates progress,
 and passes its acceptance gate before the next phase starts. Interface changes

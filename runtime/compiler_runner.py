@@ -59,6 +59,31 @@ def _kill_group(process: subprocess.Popen) -> None:
             process.kill()
     except ProcessLookupError:
         pass
+    except PermissionError as error:
+        # Darwin reports EPERM, rather than ESRCH, for a group whose only
+        # member is an exited, unreaped leader. Reap that leader and retry so
+        # any still-live descendants are also terminated. A genuinely live or
+        # inaccessible group must retain its OS error.
+        # Exit/reap and disappearance of the process group can be observed at
+        # different instants. Allow bounded cleanup, never another execution.
+        deadline = time.monotonic() + 0.1
+        while True:
+            try:
+                process.wait(timeout=max(0, deadline - time.monotonic()))
+            except subprocess.TimeoutExpired:
+                raise error
+            try:
+                if os.name == "posix":
+                    os.killpg(process.pid, signal.SIGKILL)
+                else:  # pragma: no cover
+                    process.kill()
+                break
+            except ProcessLookupError:
+                break
+            except PermissionError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.001)
 
 
 def _join_capture_threads(threads: list[threading.Thread]) -> None:
@@ -71,12 +96,35 @@ def _join_capture_threads(threads: list[threading.Thread]) -> None:
             thread.join(timeout=1)
 
 
+def _cleanup_failed_process(process: subprocess.Popen, threads: list[threading.Thread]) -> list[str]:
+    """Attempt every cleanup step without replacing the original failure."""
+    failures = []
+    try:
+        _kill_group(process)
+    except (OSError, subprocess.SubprocessError) as error:
+        failures.append(f"Cannot terminate process group during cleanup: {error}")
+    try:
+        # A failed signal must not turn error/interrupt handling into an
+        # unbounded wait for a still-live child.
+        process.wait(timeout=1)
+    except (OSError, subprocess.SubprocessError) as error:
+        failures.append(f"Cannot reap process during cleanup: {error}")
+    for thread in threads:
+        try:
+            _join_capture_threads([thread])
+        except RuntimeError as error:
+            failures.append(f"Cannot join output capture during cleanup: {error}")
+    return failures
+
+
 def _capture_pipe(pipe, path: Path, maximum: int, limited: threading.Event, failures: list[str]) -> None:
     """Drain one stream without unbounded memory or output-file growth."""
     written = 0
     try:
         with path.open("wb") as stream:
-            while chunk := pipe.read(8192):
+            # read(n) may wait for n bytes or EOF even after a short write has
+            # already exceeded the limit. read1 returns available pipe data.
+            while chunk := pipe.read1(8192):
                 remaining = maximum - written
                 if remaining > 0:
                     retained = chunk[:remaining]
@@ -86,7 +134,6 @@ def _capture_pipe(pipe, path: Path, maximum: int, limited: threading.Event, fail
                     limited.set()
     except OSError as error:
         failures.append(f"Cannot capture process output: {error}")
-        limited.set()
     finally:
         pipe.close()
 
@@ -135,6 +182,7 @@ def _run_process(
     failures: list[str] = []
     threads = []
     timed_out = False
+    group_terminated = False
     returncode = None
     started_ns = None
     duration_ns = None
@@ -164,9 +212,16 @@ def _run_process(
             deadline = time.monotonic() + timeout
             while True:
                 remaining = deadline - time.monotonic()
-                if limited.is_set() or remaining <= 0:
-                    timed_out = remaining <= 0 and not limited.is_set()
+                if remaining <= 0:
+                    # The supervisor can resume after its deadline even though
+                    # the child has already finished. Reap before classifying.
+                    returncode = process.poll()
+                    if returncode is not None:
+                        break
+                if limited.is_set() or failures or remaining <= 0:
+                    timed_out = remaining <= 0 and not limited.is_set() and not failures
                     _kill_group(process)
+                    group_terminated = True
                     returncode = process.wait()
                     break
                 try:
@@ -176,35 +231,37 @@ def _run_process(
                     pass
             # A child may have exited while its descendants still hold pipes.
             # Kill the context's process group before waiting for the drainers.
-            _kill_group(process)
+            if not group_terminated:
+                _kill_group(process)
             _join_capture_threads(threads)
             if any(thread.is_alive() for thread in threads):
                 failures.append("Process output streams did not close after termination")
             if measure:
                 duration_ns = time.perf_counter_ns() - started_ns
-    except KeyboardInterrupt:
+    except KeyboardInterrupt as error:
         # A user interruption must not leave measured or ordinary subprocesses
         # (or descendants holding output pipes) running after the caller exits.
         if process is not None:
-            _kill_group(process)
-            process.wait()
-            _join_capture_threads(threads)
+            cleanup_failures = _cleanup_failed_process(process, threads)
+            if cleanup_failures:
+                error.add_note("; ".join(cleanup_failures))
         raise
     except (OSError, subprocess.SubprocessError, _CaptureStartError) as error:
         if process is not None:
-            _kill_group(process)
-            process.wait()
-            _join_capture_threads(threads)
+            failures.extend(_cleanup_failed_process(process, threads))
             if measure:
                 duration_ns = time.perf_counter_ns() - started_ns
         return _ProcessResult(
             returncode, _read_capture(stdout_path), _read_capture(stderr_path),
-            error=f"Cannot start or manage process: {error}", output_limit=limited.is_set(),
+            error="; ".join([f"Cannot start or manage process: {error}", *failures]),
+            output_limit=limited.is_set(),
             duration_ns=duration_ns,
         )
     return _ProcessResult(
         returncode, _read_capture(stdout_path), _read_capture(stderr_path),
-        timeout=timed_out, output_limit=limited.is_set(),
+        # Captures can finish draining after termination. A confirmed byte
+        # violation takes precedence over a coincident supervision deadline.
+        timeout=timed_out and not limited.is_set(), output_limit=limited.is_set(),
         error="; ".join(failures) if failures else None,
         duration_ns=duration_ns,
     )
